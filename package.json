@@ -1,0 +1,38 @@
+{
+  "name": "telebot-panel-pro",
+  "version": "2.0.0",
+  "description": "Advanced Telegram Bot Control Panel with User Bot Management",
+  "main": "index.js",
+  "scripts": {
+    "dev": "serve public -p 8888",
+    "build": "echo 'Building TeleBot Panel Pro...'",
+    "test": "echo 'No tests specified'",
+    "deploy": "bash deploy.sh",
+    "setup": "bash deploy.sh --setup-only",
+    "generate-hash": "node -e \"const bcrypt = require('bcryptjs'); console.log(bcrypt.hashSync(process.argv[1] || 'TeleBotPro@2024!', 10))\"",
+    "generate-secret": "node -e \"console.log(require('crypto').randomBytes(64).toString('hex'))\""
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.0",
+    "axios": "^1.6.0",
+    "crypto-js": "^4.2.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "serve": "^14.2.1",
+    "netlify-cli": "^17.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "panel",
+    "userbot",
+    "automation"
+  ],
+  "author": "TeleBot Pro Team",
+  "license": "MIT"
+}
