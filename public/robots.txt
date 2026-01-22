@@ -1,0 +1,117 @@
+# TeleBot Panel Pro - Robots.txt
+User-agent: *
+Allow: /
+Disallow: /.netlify/
+Disallow: /node_modules/
+Disallow: /backups/
+Disallow: /tmp/
+
+# Sitemap
+Sitemap: https://your-domain.netlify.app/sitemap.xml
+
+# Crawl-delay
+Crawl-delay: 10
+
+# Security: Block common exploit paths
+Disallow: /admin/
+Disallow: /wp-admin/
+Disallow: /wp-login.php
+Disallow: /administrator/
+Disallow: /phpmyadmin/
+Disallow: /server-status/
+Disallow: /cgi-bin/
+Disallow: /.env
+Disallow: /.git/
+Disallow: /.htaccess
+Disallow: /backup/
+Disallow: /config/
+Disallow: /database/
+Disallow: /logs/
+
+# Allow search engines to index the main pages
+Allow: /index.html
+Allow: /css/
+Allow: /js/
+Allow: /assets/
+
+# Security: Block access to sensitive files
+Disallow: /*.env*
+Disallow: /*.config*
+Disallow: /*.json*
+Disallow: /*.log*
+Disallow: /*.sql*
+Disallow: /*.bak*
+Disallow: /*.backup*
+Disallow: /*.tar*
+Disallow: /*.gz*
+Disallow: /*.zip*
+
+# Security: Block access to source files
+Disallow: /*.js.map
+Disallow: /*.css.map
+Disallow: /*.ts
+Disallow: /*.tsx
+
+# Security: Block access to test files
+Disallow: /*.test.js
+Disallow: /*.spec.js
+Disallow: /*.test.ts
+Disallow: /*.spec.ts
+
+# Security: Block access to documentation if not needed
+Disallow: /README*
+Disallow: /CHANGELOG*
+Disallow: /LICENSE*
+
+# Allow specific user agents
+User-agent: Googlebot
+Allow: /
+Disallow: /.netlify/
+Disallow: /node_modules/
+
+User-agent: Bingbot
+Allow: /
+Disallow: /.netlify/
+Disallow: /node_modules/
+
+User-agent: Slurp
+Allow: /
+Disallow: /.netlify/
+Disallow: /node_modules/
+
+User-agent: DuckDuckBot
+Allow: /
+Disallow: /.netlify/
+Disallow: /node_modules/
+
+# Block malicious bots
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: dotbot
+Disallow: /
+
+User-agent: rogerbot
+Disallow: /
+
+# Block scraping tools
+User-agent: GPTBot
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+# Additional security headers would be configured in netlify.toml
+# This robots.txt provides an additional layer of protection
+
+# Note: This is a secure configuration for a control panel application
+# Adjust according to your specific needs and security requirements
