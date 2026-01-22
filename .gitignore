@@ -2,34 +2,77 @@
 node_modules/
 package-lock.json
 yarn.lock
+pnpm-lock.yaml
 
-# Environment
+# Environment variables
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+.env.*.local
 
-# Build
+# Build outputs
 dist/
 build/
 public/build/
+.netlify/
 
 # Logs
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+lerna-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage
+coverage/
+*.lcov
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
+.DS_Store
 
 # OS
-.DS_Store
 Thumbs.db
 
 # Netlify
 .netlify/
+functions/node_modules/
+
+# Temporary
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Session data (sensitive)
+*.session
+*.session-*
+
+# Telegram session files
+*.session
+*.session-journal
+
+# Backup files
+*.bak
+*.backup
+
+# Test files
+*.test.js
+*.spec.js
+
+# Custom
+telegram-sessions/
+user-data/
+backups/
