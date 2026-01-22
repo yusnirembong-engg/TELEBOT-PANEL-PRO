@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TeleBot Pro - Advanced Telegram Bot Control Panel</title>
+    
+    <!-- Meta Tags -->
+    <meta name="description" content="Advanced Telegram Bot Control Panel with User Bot Management, Secure Terminal, and Real-time Monitoring">
+    <meta name="keywords" content="telegram, bot, control panel, userbot, terminal, dashboard">
+    <meta name="author" content="TeleBot Pro Team">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Main CSS -->
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    
+    <!-- Theme Color -->
+    <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+</head>
+<body>
+    <!-- Initial Loading -->
+    <div class="loading-wrapper" id="initialLoading">
+        <div class="loading-content">
+            <div class="spinner spinner-lg"></div>
+            <div class="loading-text">Initializing TeleBot Pro v2.0.0...</div>
+            <div class="loading-subtext">Loading secure dashboard</div>
+        </div>
+    </div>
+
+    <!-- Login Screen -->
+    <div class="login-screen" id="loginScreen">
+        <div class="container">
+            <div class="login-container">
+                <div class="login-header">
+                    <div class="login-logo">
+                        <i class="fas fa-robot"></i>
+                        <h1>TeleBot Pro</h1>
+                    </div>
+                    <p class="login-subtitle">Advanced Telegram Bot Control Panel v2.0.0</p>
+                </div>
+                
+                <div class="login-card card">
+                    <h2><i class="fas fa-sign-in-alt"></i> Secure Login</h2>
+                    
+                    <form id="loginForm">
+                        <div class="form-group">
+                            <label for="username" class="form-label">Username</label>
+                            <input type="text" id="username" class="form-input" 
+                                   placeholder="Enter username" required autofocus
+                                   value="admin">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="password" class="form-label">Password</label>
+                            <div class="input-group">
+                                <input type="password" id="password" class="form-input" 
+                                       placeholder="Enter password" required
+                                       value="TeleBotPro@2024!">
+                                <button type="button" class="input-group-text" id="togglePassword">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- IP Display -->
+                        <div class="form-group">
+                            <div class="alert alert-info">
+                                <i class="fas fa-network-wired"></i>
+                                Your IP: <span id="ipDisplay">Detecting...</span>
+                                <span id="ipStatus" class="status-badge pending">Checking...</span>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group" id="loginError" style="display: none;">
+                            <div class="alert alert-error">
+                                <i class="fas fa-exclamation-circle"></i>
+                                <span id="errorMessage">Login failed</span>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-block" id="loginBtn">
+                            <i class="fas fa-sign-in-alt"></i> Login
+                        </button>
+                        
+                        <div class="form-group text-center mt-3">
+                            <button type="button" class="btn btn-secondary btn-sm" id="checkIPBtn">
+                                <i class="fas fa-sync-alt"></i> Refresh IP
+                            </button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="autoLoginBtn">
+                                <i class="fas fa-bolt"></i> Auto Login
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <div class="login-footer mt-3">
+                        <div class="alert alert-warning">
+                            <i class="fas fa-shield-alt"></i>
+                            <small>Access restricted to authorized IPs only. Default credentials: admin/TeleBotPro@2024!</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="login-footer-info mt-3">
+                    <p class="text-center text-muted">
+                        <i class="fas fa-code-branch"></i> v2.0.0 | 
+                        <i class="fas fa-server"></i> Serverless | 
+                        <i class="fas fa-shield-alt"></i> Secure Access
+                    </p>
+                    <p class="text-center text-muted small">
+                        Features: Multi-Bot Control • User Bot Management • Auto-Text Scheduler • Secure Terminal
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div class="main-layout" id="mainPanel" style="display: none;">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">
+                    <i class="fas fa-robot"></i>
+                    <h2>TeleBot Pro</h2>
+                </div>
+                <button class="btn-icon" id="sidebarToggle" title="Toggle Sidebar">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+            
+            <div class="sidebar-content">
+                <!-- Navigation -->
+                <nav class="sidebar-nav">
+                    <div class="nav-section">
+                        <h3 class="nav-title">MAIN</h3>
+                        <a href="#dashboard" class="nav-link active" data-section="dashboard">
+                            <i class="fas fa-home"></i>
+                            <span>Dashboard</span>
+                        </a>
+                        <a href="#terminal" class="nav-link" data-section="terminal">
+                            <i class="fas fa-terminal"></i>
+                            <span>Terminal</span>
+                        </a>
+                        <a href="#bot-control" class="nav-link" data-section="bot-control">
+                            <i class="fas fa-robot"></i>
+                            <span>Bot Control</span>
+                            <span class="nav-badge" id="botStatusBadge">0</span>
+                        </a>
+                    </div>
+                    
+                    <div class="nav-section">
+                        <h3 class="nav-title">TELEGRAM</h3>
+                        <a href="#telegram" class="nav-link" data-section="telegram">
+                            <i class="fab fa-telegram"></i>
+                            <span>User Bot</span>
+                            <span class="nav-badge" id="userbotStatusBadge">0</span>
+                        </a>
+                        <a href="#auto-text" class="nav-link" data-section="auto-text">
+                            <i class="fas fa-tasks"></i>
+                            <span>Auto Text</span>
+                            <span class="nav-badge" id="autoTextStatusBadge">0</span>
+                        </a>
+                        <a href="#scheduler" class="nav-link" data-section="scheduler">
+                            <i class="fas fa-clock"></i>
+                            <span>Scheduler</span>
+                        </a>
+                    </div>
+                    
+                    <div class="nav-section">
+                        <h3 class="nav-title">MANAGEMENT</h3>
+                        <a href="#config" class="nav-link" data-section="config">
+                            <i class="fas fa-cog"></i>
+                            <span>Configuration</span>
+                        </a>
+                        <a href="#users" class="nav-link" data-section="users">
+                            <i class="fas fa-users"></i>
+                            <span>Users & Groups</span>
+                        </a>
+                        <a href="#logs" class="nav-link" data-section="logs">
+                            <i class="fas fa-history"></i>
+                            <span>System Logs</span>
+                        </a>
+                        <a href="#monitoring" class="nav-link" data-section="monitoring">
+                            <i class="fas fa-chart-line"></i>
+                            <span>Monitoring</span>
+                        </a>
+                        <a href="#backup" class="nav-link" data-section="backup">
+                            <i class="fas fa-database"></i>
+                            <span>Backup</span>
+                        </a>
+                    </div>
+                    
+                    <div class="nav-section">
+                        <h3 class="nav-title">TOOLS</h3>
+                        <a href="#chat-manager" class="nav-link" data-section="chat-manager">
+                            <i class="fas fa-comments"></i>
+                            <span>Chat Manager</span>
+                        </a>
+                        <a href="#broadcast" class="nav-link" data-section="broadcast">
+                            <i class="fas fa-bullhorn"></i>
+                            <span>Broadcast</span>
+                        </a>
+                        <a href="#analytics" class="nav-link" data-section="analytics">
+                            <i class="fas fa-chart-bar"></i>
+                            <span>Analytics</span>
+                        </a>
+                    </div>
+                </nav>
+                
+                <!-- Sidebar Footer -->
+                <div class="sidebar-footer">
+                    <div class="user-profile">
+                        <div class="user-avatar">
+                            <i class="fas fa-user-shield"></i>
+                        </div>
+                        <div class="user-info">
+                            <div class="user-name" id="currentUser">Admin</div>
+                            <div class="user-role">Administrator</div>
+                            <div class="user-session">
+                                <small><i class="fas fa-clock"></i> <span id="sessionTimer">00:00</span></small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="sidebar-footer-actions">
+                        <button class="btn-icon" id="settingsBtn" title="Settings">
+                            <i class="fas fa-cog"></i>
+                        </button>
+                        <button class="btn-icon" id="logoutBtn" title="Logout">
+                            <i class="fas fa-sign-out-alt"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Header -->
+            <header class="top-header">
+                <div class="header-left">
+                    <button class="btn-icon sidebar-toggle-mobile" id="sidebarToggleMobile">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="breadcrumb" id="breadcrumb">
+                        <span><i class="fas fa-home"></i> Dashboard</span>
+                    </div>
+                </div>
+                
+                <div class="header-right">
+                    <div class="header-actions">
+                        <!-- Quick Stats -->
+                        <div class="quick-stats">
+                            <div class="stat-item">
+                                <i class="fas fa-robot"></i>
+                                <span>Bots: <strong id="headerBotsCount">0</strong></span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-paper-plane"></i>
+                                <span>Msgs: <strong id="headerMessagesCount">0</strong></span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-bolt"></i>
+                                <span>CPU: <strong id="headerCpuUsage">-</strong></span>
+                            </div>
+                        </div>
+                        
+                        <!-- Action Buttons -->
+                        <button class="btn-icon" id="themeToggle" title="Toggle Theme">
+                            <i class="fas fa-moon"></i>
+                        </button>
+                        <button class="btn-icon" id="refreshBtn" title="Refresh All">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                        <button class="btn-icon" id="notificationsBtn" title="Notifications">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-count" id="notificationCount">0</span>
+                        </button>
+                        
+                        <!-- System Status -->
+                        <div class="system-status">
+                            <span class="status-indicator" id="systemStatusIndicator"></span>
+                            <span id="systemStatusText">Checking...</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="content-wrapper">
+                <!-- Dashboard Section -->
+                <section id="dashboardSection" class="content-section active">
+                    <div class="section-header">
+                        <h1><i class="fas fa-home"></i> Dashboard</h1>
+                        <div class="section-actions">
+                            <button class="btn btn-primary" id="quickStartBtn">
+                                <i class="fas fa-rocket"></i> Quick Start
+                            </button>
+                            <button class="btn btn-secondary" id="refreshDashboard">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Welcome Banner -->
+                    <div class="welcome-banner card card-primary">
+                        <div class="welcome-content">
+                            <div class="welcome-icon">
+                                <i class="fas fa-robot"></i>
+                            </div>
+                            <div class="welcome-text">
+                                <h3>Welcome to TeleBot Pro v2.0.0</h3>
+                                <p>Complete Telegram bot management platform with real-time monitoring and automation</p>
+                            </div>
+                            <div class="welcome-stats">
+                                <div class="stat">
+                                    <i class="fas fa-server"></i>
+                                    <div>
+                                        <div class="stat-value" id="totalServices">0</div>
+                                        <div class="stat-label">Services</div>
+                                    </div>
+                                </div>
+                                <div class="stat">
+                                    <i class="fas fa-shield-alt"></i>
+                                    <div>
+                                        <div class="stat-value" id="securityStatus">Active</div>
+                                        <div class="stat-label">Security</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Stats Cards -->
+                    <div class="grid grid-4">
+                        <div class="stats-card">
+                            <div class="stats-content">
+                                <div class="stats-icon">
+                                    <i class="fas fa-robot"></i>
+                                </div>
+                                <div class="stats-info">
+                                    <div class="stats-value" id="totalBots">0</div>
+                                    <div class="stats-title">Active Bots</div>
+                                    <div class="stats-subtitle" id="botStatus">0 running</div>
+                                </div>
+                                <div class="stats-change neutral">
+                                    <i class="fas fa-minus"></i> 0%
+                                </div>
+                            </div>
+                            <div class="stats-actions">
+                                <button class="btn-action btn-sm" data-action="create-bot">
+                                    <i class="fas fa-plus"></i> Add Bot
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="stats-card">
+                            <div class="stats-content">
+                                <div class="stats-icon">
+                                    <i class="fas fa-server"></i>
+                                </div>
+                                <div class="stats-info">
+                                    <div class="stats-value" id="cpuUsage">-</div>
+                                    <div class="stats-title">CPU Usage</div>
+                                    <div class="stats-subtitle" id="cpuStatus">System</div>
+                                </div>
+                                <div class="stats-change" id="cpuChange">-</div>
+                            </div>
+                            <div class="stats-actions">
+                                <button class="btn-action btn-sm" data-action="monitor-cpu">
+                                    <i class="fas fa-chart-line"></i> Monitor
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="stats-card">
+                            <div class="stats-content">
+                                <div class="stats-icon">
+                                    <i class="fas fa-memory"></i>
+                                </div>
+                                <div class="stats-info">
+                                    <div class="stats-value" id="memoryUsage">-</div>
+                                    <div class="stats-title">Memory</div>
+                                    <div class="stats-subtitle" id="memoryStatus">Usage</div>
+                                </div>
+                                <div class="stats-change" id="memoryChange">-</div>
+                            </div>
+                            <div class="stats-actions">
+                                <button class="btn-action btn-sm" data-action="monitor-memory">
+                                    <i class="fas fa-database"></i> Details
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="stats-card">
+                            <div class="stats-content">
+                                <div class="stats-icon">
+                                    <i class="fas fa-shield-alt"></i>
+                                </div>
+                                <div class="stats-info">
+                                    <div class="stats-value" id="uptimeDays">0</div>
+                                    <div class="stats-title">Days Uptime</div>
+                                    <div class="stats-subtitle" id="uptimeStatus">Stable</div>
+                                </div>
+                                <div class="stats-change positive">
+                                    <i class="fas fa-arrow-up"></i> 100%
+                                </div>
+                            </div>
+                            <div class="stats-actions">
+                                <button class="btn-action btn-sm" data-action="system-info">
+                                    <i class="fas fa-info-circle"></i> Info
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Quick Actions -->
+                    <div class="section-block">
+                        <h3><i class="fas fa-bolt"></i> Quick Actions</h3>
+                        <div class="quick-actions">
+                            <button class="btn-action btn-success" data-action="start-all-bots">
+                                <i class="fas fa-play"></i> Start All Bots
+                            </button>
+                            <button class="btn-action btn-warning" data-action="restart-services">
+                                <i class="fas fa-redo"></i> Restart Services
+                            </button>
+                            <button class="btn-action btn-danger" data-action="stop-all-bots">
+                                <i class="fas fa-stop"></i> Stop All Bots
+                            </button>
+                            <button class="btn-action btn-info" data-action="view-logs">
+                                <i class="fas fa-file-alt"></i> View Logs
+                            </button>
+                            <button class="btn-action btn-primary" data-action="create-userbot">
+                                <i class="fab fa-telegram"></i> Create User Bot
+                            </button>
+                            <button class="btn-action btn-secondary" data-action="open-terminal">
+                                <i class="fas fa-terminal"></i> Open Terminal
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Recent Activity -->
+                    <div class="section-block">
+                        <div class="block-header">
+                            <h3><i class="fas fa-history"></i> Recent Activity</h3>
+                            <button class="btn btn-sm btn-secondary" id="clearActivity">
+                                <i class="fas fa-trash"></i> Clear
+                            </button>
+                        </div>
+                        <div class="activity-list" id="activityList">
+                            <div class="activity-item">
+                                <div class="activity-icon">
+                                    <i class="fas fa-info-circle"></i>
+                                </div>
+                                <div class="activity-content">
+                                    <div class="activity-title">System Initialized</div>
+                                    <div class="activity-time">Just now</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- System Status -->
+                    <div class="grid grid-2">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="fas fa-heartbeat"></i> System Health</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="health-status">
+                                    <div class="health-item">
+                                        <span class="health-label">API Status</span>
+                                        <span class="health-value status-success">Operational</span>
+                                    </div>
+                                    <div class="health-item">
+                                        <span class="health-label">Database</span>
+                                        <span class="health-value status-success">Connected</span>
+                                    </div>
+                                    <div class="health-item">
+                                        <span class="health-label">Telegram API</span>
+                                        <span class="health-value status-warning">Checking...</span>
+                                    </div>
+                                    <div class="health-item">
+                                        <span class="health-label">Security</span>
+                                        <span class="health-value status-success">Active</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="fas fa-chart-line"></i> Performance</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="performance-stats">
+                                    <div class="perf-item">
+                                        <div class="perf-label">Response Time</div>
+                                        <div class="perf-value">~50ms</div>
+                                        <div class="perf-bar">
+                                            <div class="perf-fill" style="width: 85%"></div>
+                                        </div>
+                                    </div>
+                                    <div class="perf-item">
+                                        <div class="perf-label">Uptime</div>
+                                        <div class="perf-value">100%</div>
+                                        <div class="perf-bar">
+                                            <div class="perf-fill" style="width: 100%"></div>
+                                        </div>
+                                    </div>
+                                    <div class="perf-item">
+                                        <div class="perf-label">Memory</div>
+                                        <div class="perf-value" id="performanceMemory">-</div>
+                                        <div class="perf-bar">
+                                            <div class="perf-fill" style="width: 60%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Terminal Section -->
+                <section id="terminalSection" class="content-section">
+                    <div class="section-header">
+                        <h1><i class="fas fa-terminal"></i> Secure Terminal</h1>
+                        <div class="section-actions">
+                            <button class="btn btn-sm btn-secondary" id="clearTerminal">
+                                <i class="fas fa-broom"></i> Clear
+                            </button>
+                            <button class="btn btn-sm btn-secondary" id="copyTerminal">
+                                <i class="fas fa-copy"></i> Copy
+                            </button>
+                            <button class="btn btn-sm btn-secondary" id="downloadTerminal">
+                                <i class="fas fa-download"></i> Download
+                            </button>
+                            <button class="btn btn-sm btn-primary" id="executeCommand">
+                                <i class="fas fa-play"></i> Execute
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Terminal Stats -->
+                    <div class="terminal-stats">
+                        <div class="stat-item">
+                            <i class="fas fa-code"></i>
+                            <span>Commands: <strong id="terminalCommandCount">0</strong></span>
+                        </div>
+                        <div class="stat-item">
+                            <i class="fas fa-user"></i>
+                            <span>User: <strong id="terminalUser">admin</strong></span>
+                        </div>
+                        <div class="stat-item">
+                            <i class="fas fa-clock"></i>
+                            <span>Session: <strong id="terminalSessionTime">00:00</strong></span>
+                        </div>
+                        <div class="stat-item">
+                            <i class="fas fa-shield-alt"></i>
+                            <span>Security: <strong>Enabled</strong></span>
+                        </div>
+                    </div>
+                    
+                    <div class="terminal-container">
+                        <div class="terminal-header">
+                            <div class="terminal-title">
+                                <i class="fas fa-shield-alt"></i>
+                                <span>Secure Terminal - Command Execution</span>
+                            </div>
+                            <div class="terminal-controls">
+                                <button class="btn-icon" title="Toggle Fullscreen" id="terminalFullscreen">
+                                    <i class="fas fa-expand"></i>
+                                </button>
+                                <button class="btn-icon" title="Command History" id="terminalHistory">
+                                    <i class="fas fa-history"></i>
+                                </button>
+                                <button class="btn-icon" title="Help" id="terminalHelp">
+                                    <i class="fas fa-question-circle"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="terminal-output" id="terminalOutput">
+                            <div class="terminal-welcome">
+                                <div class="welcome-header">
+                                    <i class="fas fa-terminal"></i>
+                                    <h3>TeleBot Pro Secure Terminal v2.0.0</h3>
+                                </div>
+                                <div class="welcome-message">
+                                    <p>🔐 <strong>Secure Terminal Access</strong> - All commands are executed in a sandboxed environment</p>
+                                    <p>📋 <strong>Allowed Commands</strong> - Only pre-approved commands can be executed</p>
+                                    <p>📊 <strong>Real-time Monitoring</strong> - All activities are logged and monitored</p>
+                                    <p>⚡ <strong>Type 'help'</strong> to see available commands</p>
+                                </div>
+                                <div class="terminal-status">
+                                    <span class="status-badge success">Connected</span>
+                                    <span class="status-badge info">Secure Mode</span>
+                                    <span class="status-badge warning">Sandboxed</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="terminal-input">
+                            <span class="prompt">admin@telebot-pro:~$</span>
+                            <input type="text" class="command-input" id="commandInput" 
+                                   placeholder="Type command and press Enter (e.g., ls -la, git status, help)"
+                                   autocomplete="off" spellcheck="false">
+                            <button class="btn-icon" id="terminalExecute" title="Execute Command">
+                                <i class="fas fa-play"></i>
+                            </button>
+                        </div>
+                        <div class="terminal-footer">
+                            <div class="footer-left">
+                                <i class="fas fa-info-circle"></i>
+                                <small>Press ↑/↓ for history, Tab for auto-completion</small>
+                            </div>
+                            <div class="footer-right">
+                                <small id="terminalStatus">Ready</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Command Examples -->
+                    <div class="terminal-examples">
+                        <h4><i class="fas fa-lightbulb"></i> Quick Commands</h4>
+                        <div class="example-grid">
+                            <button class="example-command" data-command="ls -la">
+                                <code>ls -la</code>
+                                <span>List files</span>
+                            </button>
+                            <button class="example-command" data-command="ps aux | head -20">
+                                <code>ps aux</code>
+                                <span>Show processes</span>
+                            </button>
+                            <button class="example-command" data-command="node --version">
+                                <code>node --version</code>
+                                <span>Check Node.js</span>
+                            </button>
+                            <button class="example-command" data-command="curl -s https://api.ipify.org">
+                                <code>curl ipify</code>
+                                <span>Get public IP</span>
+                            </button>
+                            <button class="example-command" data-command="status">
+                                <code>status</code>
+                                <span>System status</span>
+                            </button>
+                            <button class="example-command" data-command="bots">
+                                <code>bots</code>
+                                <span>List bots</span>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Bot Control Section -->
+                <section id="botControlSection" class="content-section">
+                    <div class="section-header">
+                        <h1><i class="fas fa-robot"></i> Bot Control</h1>
+                        <div class="section-actions">
+                            <button class="btn btn-success" id="createBotBtn">
+                                <i class="fas fa-plus"></i> Create Bot
+                            </button>
+                            <button class="btn btn-primary" id="refreshBotsBtn">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                            <div class="btn-group">
+                                <button class="btn btn-warning" data-action="restart-all">
+                                    <i class="fas fa-redo"></i> Restart All
+                                </button>
+                                <button class="btn btn-danger" data-action="stop-all">
+                                    <i class="fas fa-stop"></i> Stop All
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Bot Statistics -->
+                    <div class="bot-stats-bar">
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-robot"></i>
+                            </div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="totalBotsCount">0</div>
+                                <div class="stat-label">Total Bots</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-play-circle"></i>
+                            </div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="runningBotsCount">0</div>
+                                <div class="stat-label">Running</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-stop-circle"></i>
+                            </div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stoppedBotsCount">0</div>
+                                <div class="stat-label">Stopped</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-paper-plane"></i>
+                            </div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="totalMessagesCount">0</div>
+                                <div class="stat-label">Messages Sent</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="totalErrorsCount">0</div>
+                                <div class="stat-label">Errors</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Bot List -->
+                    <div class="section-block">
+                        <div class="block-header">
+                            <h3><i class="fas fa-list"></i> Bot List</h3>
+                            <div class="block-actions">
+                                <div class="search-box">
+                                    <input type="text" id="botSearch" placeholder="Search bots..." class="search-input">
+                                    <i class="fas fa-search"></i>
+                                </div>
+                                <select id="botFilter" class="form-select form-select-sm">
+                                    <option value="all">All Bots</option>
+                                    <option value="running">Running</option>
+                                    <option value="stopped">Stopped</option>
+                                    <option value="error">Error</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="bots-list" id="botsList">
+                            <!-- Bots will be loaded here dynamically -->
+                            <div class="empty-state">
+                                <i class="fas fa-robot"></i>
+                                <h3>No Bots Yet</h3>
+                                <p>Create your first Telegram bot to get started</p>
+                                <button class="btn-primary" id="createFirstBot">
+                                    <i class="fas fa-plus"></i> Create Your First Bot
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Bot Details (hidden by default) -->
+                    <div class="bot-details-section" id="botDetailsSection" style="display: none;">
+                        <div class="section-block">
+                            <div class="block-header">
+                                <button class="btn btn-secondary" id="backToListBtn">
+                                    <i class="fas fa-arrow-left"></i> Back to List
+                                </button>
+                                <h3><i class="fas fa-info-circle"></i> Bot Details</h3>
+                            </div>
+                            <div id="botDetails">
+                                <!-- Bot details will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Quick Bot Actions -->
+                    <div class="section-block">
+                        <h3><i class="fas fa-bolt"></i> Quick Actions</h3>
+                        <div class="quick-actions">
+                            <button class="btn-action btn-success" data-action="start-selected">
+                                <i class="fas fa-play"></i> Start Selected
+                            </button>
+                            <button class="btn-action btn-warning" data-action="restart-selected">
+                                <i class="fas fa-redo"></i> Restart Selected
+                            </button>
+                            <button class="btn-action btn-danger" data-action="stop-selected">
+                                <i class="fas fa-stop"></i> Stop Selected
+                            </button>
+                            <button class="btn-action btn-info" data-action="send-message">
+                                <i class="fas fa-paper-plane"></i> Send Message
+                            </button>
+                            <button class="btn-action btn-secondary" data-action="view-logs">
+                                <i class="fas fa-file-alt"></i> View Logs
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Bot Configuration -->
+                    <div class="grid grid-2">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="fas fa-cog"></i> Bot Configuration</h3>
+                            </div>
+                            <div class="card-body">
+                                <form id="botConfigForm">
+                                    <div class="form-group">
+                                        <label class="form-label">Default Bot Settings</label>
+                                        <div class="form-check">
+                                            <input type="checkbox" id="autoStartBots" checked>
+                                            <label for="autoStartBots">Auto-start bots on creation</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input type="checkbox" id="autoRestartBots">
+                                            <label for="autoRestartBots">Auto-restart on crash</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input type="checkbox" id="enableLogging" checked>
+                                            <label for="enableLogging">Enable detailed logging</label>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label class="form-label">Message Settings</label>
+                                        <input type="number" id="messageDelay" class="form-input" 
+                                               placeholder="Delay between messages (ms)" value="1000">
+                                        <small class="form-help">Delay in milliseconds between sending messages</small>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label class="form-label">Error Handling</label>
+                                        <select id="errorHandling" class="form-select">
+                                            <option value="retry">Retry 3 times</option>
+                                            <option value="stop">Stop on error</option>
+                                            <option value="ignore">Ignore and continue</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <button type="button" class="btn btn-primary btn-block" id="saveBotConfig">
+                                        <i class="fas fa-save"></i> Save Configuration
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="fas fa-chart-bar"></i> Bot Statistics</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="stats-overview">
+                                    <div class="stat-row">
+                                        <span>Total Messages Today</span>
+                                        <strong id="statsMessagesToday">0</strong>
+                                    </div>
+                                    <div class="stat-row">
+                                        <span>Successful Messages</span>
+                                        <strong id="statsSuccessful">0</strong>
+                                    </div>
+                                    <div class="stat-row">
+                                        <span>Failed Messages</span>
+                                        <strong id="statsFailed">0</strong>
+                                    </div>
+                                    <div class="stat-row">
+                                        <span>Success Rate</span>
+                                        <strong id="statsSuccessRate">0%</strong>
+                                    </div>
+                                    <div class="stat-row">
+                                        <span>Average Response Time</span>
+                                        <strong id="statsResponseTime">0ms</strong>
+                                    </div>
+                                    <div class="stat-row">
+                                        <span>Active Sessions</span>
+                                        <strong id="statsActiveSessions">0</strong>
+                                    </div>
+                                </div>
+                                
+                                <div class="stats-chart">
+                                    <canvas id="botStatsChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Telegram User Bot Section -->
+                <section id="telegramSection" class="content-section">
+                    <div class="section-header">
+                        <h1><i class="fab fa-telegram"></i> Telegram User Bot</h1>
+                        <div class="section-actions">
+                            <button class="btn btn-success" id="createUserBotBtn">
+                                <i class="fas fa-plus"></i> Create User Bot
+                            </button>
+                            <button class="btn btn-primary" id="refreshUserBotsBtn">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Content will be loaded dynamically by userbot-ui.js -->
+                    <div id="telegramContent">
+                        <div class="loading-state">
+                            <div class="spinner"></div>
+                            <p>Loading Telegram User Bot Interface...</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Other sections will be loaded dynamically -->
+                <div id="dynamicContent"></div>
+            </div>
+        </main>
+        
+        <!-- Notifications Panel -->
+        <div class="notifications-panel" id="notificationsPanel">
+            <div class="notifications-header">
+                <h3><i class="fas fa-bell"></i> Notifications</h3>
+                <button class="btn-icon" id="closeNotifications">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="notifications-list" id="notificationsList">
+                <div class="notification-item">
+                    <div class="notification-icon">
+                        <i class="fas fa-info-circle"></i>
+                    </div>
+                    <div class="notification-content">
+                        <div class="notification-title">System Initialized</div>
+                        <div class="notification-time">Just now</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container toast-container-top-right" id="toastContainer"></div>
+
+    <!-- JavaScript Files -->
+    <script src="/js/auth-manager.js"></script>
+    <script src="/js/bot-manager.js"></script>
+    <script src="/js/telegram-manager.js"></script>
+    <script src="/js/terminal-manager.js"></script>
+    <script src="/js/userbot-manager.js"></script>
+    <script src="/js/ui-components.js"></script>
+    <script src="/js/app.js"></script>
+    
+    <!-- Initialize Application -->
+    <script>
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            // Hide loading screen
+            setTimeout(() => {
+                const loading = document.getElementById('initialLoading');
+                if (loading) {
+                    loading.style.opacity = '0';
+                    setTimeout(() => {
+                        loading.style.display = 'none';
+                    }, 300);
+                }
+                
+                // Initialize IP detection
+                detectIP();
+                
+                // Initialize app if available
+                if (window.app) {
+                    window.app.init();
+                }
+            }, 1000);
+        });
+        
+        // IP Detection
+        async function detectIP() {
+            try {
+                const ipDisplay = document.getElementById('ipDisplay');
+                const ipStatus = document.getElementById('ipStatus');
+                
+                ipDisplay.textContent = 'Detecting...';
+                ipStatus.className = 'status-badge pending';
+                ipStatus.textContent = 'Checking...';
+                
+                const response = await fetch('https://api.ipify.org?format=json');
+                const data = await response.json();
+                
+                ipDisplay.textContent = data.ip;
+                ipStatus.className = 'status-badge success';
+                ipStatus.textContent = 'Detected';
+                
+                return data.ip;
+            } catch (error) {
+                const ipDisplay = document.getElementById('ipDisplay');
+                const ipStatus = document.getElementById('ipStatus');
+                
+                ipDisplay.textContent = 'Failed to detect';
+                ipStatus.className = 'status-badge error';
+                ipStatus.textContent = 'Error';
+                
+                return null;
+            }
+        }
+        
+        // Auto-login for development
+        document.getElementById('autoLoginBtn')?.addEventListener('click', function() {
+            document.getElementById('username').value = 'admin';
+            document.getElementById('password').value = 'TeleBotPro@2024!';
+            
+            // Trigger login form submission
+            const loginForm = document.getElementById('loginForm');
+            if (loginForm) {
+                const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
+                loginForm.dispatchEvent(submitEvent);
+            }
+        });
+        
+        // IP refresh button
+        document.getElementById('checkIPBtn')?.addEventListener('click', detectIP);
+    </script>
+</body>
+</html>
