@@ -89,11 +89,16 @@ class TelegramUserBot {
             console.error(`❌ Connection failed:`, error);
             this.status = 'error';
             
+            // Check error type for better response
+            const errorMessage = error.message || '';
+            const requiresPassword = errorMessage.includes('password') || errorMessage.includes('SESSION_PASSWORD_NEEDED');
+            const requiresPhoneCode = errorMessage.includes('phone') || errorMessage.includes('code');
+            
             return {
                 success: false,
                 error: error.message,
-                requiresCode: error.errorMessage === 'SESSION_PASSWORD_NEEDED',
-                requiresPhoneCode: error.errorMessage?.includes('phone')
+                requiresPhoneCode: requiresPhoneCode,
+                requiresPassword: requiresPassword
             };
         }
     }
@@ -239,6 +244,66 @@ function generateSessionId() {
 }
 
 // ============================================
+// VERIFY CONNECTION (FIXED VERSION)
+// ============================================
+async function verifyConnection(sessionId, data, user, origin) {
+    console.log(`🔐 Verifying session: ${sessionId} for user ${user.user}`);
+    
+    const session = userSessions.get(sessionId);
+    
+    if (!session) {
+        return response(404, { error: 'Session not found' }, origin);
+    }
+    
+    if (session.owner !== user.user && !user.isDemo) {
+        return response(403, { error: 'Access denied' }, origin);
+    }
+    
+    const { verificationCode } = data;
+    
+    if (!verificationCode || !/^\d{5}$/.test(verificationCode)) {
+        return response(400, { 
+            error: 'Valid 5-digit verification code required',
+            requiresVerification: true
+        }, origin);
+    }
+    
+    try {
+        const result = await session.bot.connect(verificationCode);
+        
+        if (result.success) {
+            console.log(`✅ Session verified: ${sessionId} for user ${result.user.username}`);
+            
+            return response(200, {
+                success: true,
+                sessionId,
+                message: 'Verified and connected successfully',
+                user: result.user,
+                status: result.status
+            }, origin);
+        } else {
+            console.error('❌ Verification failed:', result.error);
+            
+            return response(400, {
+                success: false,
+                error: result.error || 'Verification failed',
+                requiresPhoneCode: result.requiresPhoneCode,
+                requiresPassword: result.requiresPassword,
+                requiresVerification: true
+            }, origin);
+        }
+    } catch (error) {
+        console.error('❌ Verification error:', error);
+        
+        return response(500, {
+            success: false,
+            error: error.message || 'Internal verification error',
+            requiresVerification: true
+        }, origin);
+    }
+}
+
+// ============================================
 // API HANDLER
 // ============================================
 exports.handler = async (event, context) => {
@@ -267,7 +332,7 @@ exports.handler = async (event, context) => {
         const requestData = JSON.parse(event.body || '{}');
         const { action, sessionId, ...data } = requestData;
         
-        console.log(`📥 Action: ${action}, User: ${user.user}`);
+        console.log(`📥 Action: ${action}, User: ${user.user}, Session: ${sessionId || 'new'}`);
         
         switch (action) {
             case 'connect':
@@ -333,13 +398,17 @@ async function connectUserBot(data, user, origin) {
         createdAt: Date.now(),
         apiId,
         apiHash: apiHash.substring(0, 8) + '***', // Mask hash
-        phoneNumber
+        phoneNumber,
+        status: 'pending_verification'
     });
+    
+    console.log(`📱 Created session: ${sessionId} for ${phoneNumber}`);
     
     // Try to connect (will ask for verification code)
     const result = await userBot.connect();
     
     if (result.success) {
+        userSessions.get(sessionId).status = 'connected';
         return response(200, {
             success: true,
             sessionId,
@@ -348,47 +417,21 @@ async function connectUserBot(data, user, origin) {
             requiresVerification: false
         }, origin);
     } else {
-        return response(200, {
-            success: false,
-            sessionId,
-            requiresVerification: true,
-            message: 'Please enter verification code sent to your phone',
-            error: result.error
-        }, origin);
-    }
-}
-
-async function verifyConnection(sessionId, data, user, origin) {
-    const session = userSessions.get(sessionId);
-    
-    if (!session) {
-        return response(404, { error: 'Session not found' }, origin);
-    }
-    
-    if (session.owner !== user.user) {
-        return response(403, { error: 'Access denied' }, origin);
-    }
-    
-    const { verificationCode } = data;
-    
-    if (!verificationCode) {
-        return response(400, { error: 'Verification code required' }, origin);
-    }
-    
-    const result = await session.bot.connect(verificationCode);
-    
-    if (result.success) {
-        return response(200, {
-            success: true,
-            sessionId,
-            message: 'Verified and connected successfully',
-            user: result.user
-        }, origin);
-    } else {
-        return response(400, {
-            success: false,
-            error: result.error
-        }, origin);
+        if (result.requiresPhoneCode) {
+            return response(200, {
+                success: false,
+                sessionId,
+                requiresVerification: true,
+                message: 'Please enter 5-digit verification code sent to your phone',
+                error: result.error || 'Verification required'
+            }, origin);
+        } else {
+            return response(400, {
+                success: false,
+                error: result.error,
+                requiresPassword: result.requiresPassword
+            }, origin);
+        }
     }
 }
 
@@ -399,7 +442,7 @@ async function sendUserMessage(sessionId, data, user, origin) {
         return response(404, { error: 'Session not found' }, origin);
     }
     
-    if (session.owner !== user.user) {
+    if (session.owner !== user.user && !user.isDemo) {
         return response(403, { error: 'Access denied' }, origin);
     }
     
@@ -409,6 +452,15 @@ async function sendUserMessage(sessionId, data, user, origin) {
         return response(400, { 
             error: 'Missing required fields',
             required: ['chatId', 'message']
+        }, origin);
+    }
+    
+    // Check if bot is connected
+    if (session.bot.status !== 'connected') {
+        return response(400, { 
+            error: 'Session not connected',
+            status: session.bot.status,
+            requiresVerification: session.status === 'pending_verification'
         }, origin);
     }
     
@@ -429,16 +481,20 @@ async function sendUserMessage(sessionId, data, user, origin) {
             chatId,
             message,
             scheduledFor: scheduleDate.toISOString(),
-            owner: user.user
+            owner: user.user,
+            status: 'scheduled'
         });
         
         setTimeout(async () => {
             try {
                 await session.bot.sendMessage(chatId, message);
                 console.log(`✅ Scheduled message sent: ${jobId}`);
-                scheduledMessages.delete(jobId);
+                scheduledMessages.get(jobId).status = 'sent';
+                scheduledMessages.get(jobId).sentAt = new Date().toISOString();
             } catch (error) {
                 console.error(`❌ Failed to send scheduled message:`, error);
+                scheduledMessages.get(jobId).status = 'failed';
+                scheduledMessages.get(jobId).error = error.message;
             }
         }, delay);
         
@@ -455,9 +511,17 @@ async function sendUserMessage(sessionId, data, user, origin) {
     const result = await session.bot.sendMessage(chatId, message);
     
     if (result.success) {
-        return response(200, result, origin);
+        return response(200, {
+            success: true,
+            ...result,
+            sessionId
+        }, origin);
     } else {
-        return response(500, result, origin);
+        return response(500, {
+            success: false,
+            ...result,
+            sessionId
+        }, origin);
     }
 }
 
@@ -511,14 +575,24 @@ async function getUserDialogs(sessionId, user, origin) {
         return response(404, { error: 'Session not found' }, origin);
     }
     
-    if (session.owner !== user.user) {
+    if (session.owner !== user.user && !user.isDemo) {
         return response(403, { error: 'Access denied' }, origin);
+    }
+    
+    // Check if bot is connected
+    if (session.bot.status !== 'connected') {
+        return response(400, { 
+            error: 'Session not connected',
+            status: session.bot.status,
+            requiresVerification: session.status === 'pending_verification'
+        }, origin);
     }
     
     const dialogs = await session.bot.loadDialogs();
     
     return response(200, {
         success: true,
+        sessionId,
         dialogs,
         count: dialogs.length
     }, origin);
@@ -531,7 +605,7 @@ async function getSessionStatus(sessionId, user, origin) {
         return response(404, { error: 'Session not found' }, origin);
     }
     
-    if (session.owner !== user.user) {
+    if (session.owner !== user.user && !user.isDemo) {
         return response(403, { error: 'Access denied' }, origin);
     }
     
@@ -543,7 +617,9 @@ async function getSessionStatus(sessionId, user, origin) {
         sessionInfo: {
             apiId: session.apiId,
             phoneNumber: session.phoneNumber,
-            connectedSince: new Date(session.createdAt).toISOString()
+            connectedSince: new Date(session.createdAt).toISOString(),
+            owner: session.owner,
+            requiresVerification: session.status === 'pending_verification'
         }
     }, origin);
 }
@@ -555,7 +631,7 @@ async function disconnectSession(sessionId, user, origin) {
         return response(404, { error: 'Session not found' }, origin);
     }
     
-    if (session.owner !== user.user) {
+    if (session.owner !== user.user && !user.isDemo) {
         return response(403, { error: 'Access denied' }, origin);
     }
     
@@ -576,8 +652,17 @@ async function getUserChats(sessionId, user, origin) {
         return response(404, { error: 'Session not found' }, origin);
     }
     
-    if (session.owner !== user.user) {
+    if (session.owner !== user.user && !user.isDemo) {
         return response(403, { error: 'Access denied' }, origin);
+    }
+    
+    // Check if bot is connected
+    if (session.bot.status !== 'connected') {
+        return response(400, { 
+            error: 'Session not connected',
+            status: session.bot.status,
+            requiresVerification: session.status === 'pending_verification'
+        }, origin);
     }
     
     try {
@@ -586,6 +671,7 @@ async function getUserChats(sessionId, user, origin) {
         
         return response(200, {
             success: true,
+            sessionId,
             chats,
             stats: {
                 groups: chats.filter(c => c.type === 'group').length,
@@ -594,7 +680,10 @@ async function getUserChats(sessionId, user, origin) {
             }
         }, origin);
     } catch (error) {
-        return response(500, { error: error.message }, origin);
+        return response(500, { 
+            error: error.message,
+            sessionId 
+        }, origin);
     }
 }
 
@@ -603,6 +692,15 @@ async function setupAutoText(sessionId, data, user, origin) {
     
     if (!targets || !message) {
         return response(400, { error: 'Targets and message required' }, origin);
+    }
+    
+    const session = userSessions.get(sessionId);
+    if (!session) {
+        return response(404, { error: 'Session not found' }, origin);
+    }
+    
+    if (session.owner !== user.user && !user.isDemo) {
+        return response(403, { error: 'Access denied' }, origin);
     }
     
     const jobId = `autotext_${Date.now()}`;
@@ -738,4 +836,16 @@ setInterval(() => {
             console.log(`🧹 Cleaned up old session: ${sessionId}`);
         }
     }
+    
+    // Cleanup old scheduled messages
+    for (const [jobId, job] of scheduledMessages.entries()) {
+        if (job.status === 'sent' || job.status === 'failed') {
+            const jobTime = new Date(job.scheduledFor || job.createdAt).getTime();
+            if (now - jobTime > 7 * 24 * 60 * 60 * 1000) { // 7 days
+                scheduledMessages.delete(jobId);
+            }
+        }
+    }
 }, 60 * 60 * 1000); // Run every hour
+
+console.log('✅ Telegram API Function Loaded');
