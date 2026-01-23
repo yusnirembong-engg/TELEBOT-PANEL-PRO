@@ -3,7 +3,6 @@
  * Entry point for the application
  */
 
-// Simple app initialization
 console.log('🚀 TeleBot Pro App Loading...');
 
 // Wait for all resources to load
@@ -162,7 +161,7 @@ function setupBasicListeners() {
     }
 }
 
-// Handle successful login
+// Handle successful login - VERSI TERUPDATE
 function handleSuccessfulLogin(result, username, clientIP) {
     // Show success
     const loginBtn = document.getElementById('loginBtn');
@@ -177,8 +176,14 @@ function handleSuccessfulLogin(result, username, clientIP) {
     if (loginScreen) loginScreen.style.display = 'none';
     if (mainPanel) mainPanel.style.display = 'flex';
     
-    // Initialize UI components
-    initializeAfterLogin(username, clientIP);
+    // Initialize ALL managers
+    initializeAllManagers();
+    
+    // Setup session timer
+    setupSessionTimer();
+    
+    // Show success toast
+    showToast('Login successful! Welcome to TeleBot Pro', 'success');
     
     // Reset button after delay
     setTimeout(() => {
@@ -187,6 +192,56 @@ function handleSuccessfulLogin(result, username, clientIP) {
             loginBtn.disabled = false;
         }
     }, 2000);
+}
+
+// Fungsi untuk menginisialisasi semua managers
+function initializeAllManagers() {
+    console.log('🚀 Initializing all managers...');
+    
+    // Initialize UI Components
+    if (window.uiComponents && typeof window.uiComponents.init === 'function') {
+        window.uiComponents.init();
+        console.log('✅ UI Components initialized');
+    }
+    
+    // Initialize Bot Manager
+    if (window.botManager && typeof window.botManager.init === 'function') {
+        window.botManager.init();
+        console.log('✅ Bot Manager initialized');
+    }
+    
+    // Initialize Telegram Manager
+    if (window.telegramManager && typeof window.telegramManager.init === 'function') {
+        window.telegramManager.init();
+        console.log('✅ Telegram Manager initialized');
+    }
+    
+    // Initialize Terminal Manager
+    if (window.terminalManager && typeof window.terminalManager.init === 'function') {
+        window.terminalManager.init();
+        console.log('✅ Terminal Manager initialized');
+    }
+    
+    // Initialize UserBot Manager
+    if (window.userBotManager && typeof window.userBotManager.init === 'function') {
+        window.userBotManager.init();
+        console.log('✅ UserBot Manager initialized');
+    }
+    
+    // Update user info
+    const userElement = document.getElementById('currentUser');
+    if (userElement) {
+        userElement.textContent = username || 'admin';
+    }
+    
+    // Force switch to dashboard
+    setTimeout(() => {
+        if (window.uiComponents && typeof window.uiComponents.switchSection === 'function') {
+            window.uiComponents.switchSection('dashboard');
+        } else {
+            switchSection('dashboard');
+        }
+    }, 500);
 }
 
 // Handle login error
@@ -201,82 +256,6 @@ function handleLoginError(errorMessage, loginBtn, errorDiv) {
         loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login';
         loginBtn.disabled = false;
     }
-}
-
-// Initialize after login
-function initializeAfterLogin(username, clientIP) {
-    console.log(`✅ Login successful for user: ${username}`);
-    
-    // Update user info
-    const userElement = document.getElementById('currentUser');
-    if (userElement) {
-        userElement.textContent = username;
-    }
-    
-    // Initialize UI Components if available
-    if (window.uiComponents) {
-        // Switch to dashboard
-        window.uiComponents.switchSection('dashboard');
-        
-        // Show welcome toast
-        window.uiComponents.showToast('Welcome to TeleBot Pro!', 'success');
-        
-        // Add login notification
-        window.uiComponents.addNotification(
-            'Login Successful',
-            `User ${username} logged in${clientIP ? ` from ${clientIP}` : ''}`,
-            'success',
-            { username, ip: clientIP }
-        );
-        
-        // Update dashboard stats
-        window.uiComponents.updateDashboardStats();
-    } else {
-        // Fallback initialization
-        fallbackInitializeAfterLogin();
-    }
-    
-    // Setup session timer
-    setupSessionTimer();
-    
-    // Initialize managers if they exist
-    initializeManagers();
-}
-
-// Fallback initialization
-function fallbackInitializeAfterLogin() {
-    console.log('⚠️ UI Components not available, using fallback initialization');
-    
-    // Switch to dashboard section
-    const dashboardSection = document.getElementById('dashboardSection');
-    const otherSections = document.querySelectorAll('.content-section:not(#dashboardSection)');
-    
-    if (dashboardSection) {
-        dashboardSection.classList.add('active');
-    }
-    
-    otherSections.forEach(section => {
-        section.classList.remove('active');
-    });
-    
-    // Update nav links
-    document.querySelectorAll('.nav-link').forEach(link => {
-        link.classList.remove('active');
-    });
-    
-    const dashboardLink = document.querySelector('.nav-link[data-section="dashboard"]');
-    if (dashboardLink) {
-        dashboardLink.classList.add('active');
-    }
-    
-    // Update breadcrumb
-    const breadcrumb = document.getElementById('breadcrumb');
-    if (breadcrumb) {
-        breadcrumb.innerHTML = '<span><i class="fas fa-home"></i> Dashboard</span>';
-    }
-    
-    // Show simple toast
-    showToast('Welcome to TeleBot Pro!', 'success');
 }
 
 // Setup session timer
@@ -297,49 +276,6 @@ function setupSessionTimer() {
     
     // Store timer for cleanup
     window.sessionTimer = timer;
-}
-
-// Initialize managers
-function initializeManagers() {
-    // Initialize bot manager if available
-    if (window.botManager && typeof window.botManager.init === 'function') {
-        try {
-            window.botManager.init();
-            console.log('✅ Bot Manager initialized');
-        } catch (error) {
-            console.error('Failed to initialize Bot Manager:', error);
-        }
-    }
-    
-    // Initialize terminal manager if available
-    if (window.terminalManager && typeof window.terminalManager.init === 'function') {
-        try {
-            window.terminalManager.init();
-            console.log('✅ Terminal Manager initialized');
-        } catch (error) {
-            console.error('Failed to initialize Terminal Manager:', error);
-        }
-    }
-    
-    // Initialize telegram manager if available
-    if (window.telegramManager && typeof window.telegramManager.init === 'function') {
-        try {
-            window.telegramManager.init();
-            console.log('✅ Telegram Manager initialized');
-        } catch (error) {
-            console.error('Failed to initialize Telegram Manager:', error);
-        }
-    }
-    
-    // Initialize userbot manager if available
-    if (window.userBotManager && typeof window.userBotManager.init === 'function') {
-        try {
-            window.userBotManager.init();
-            console.log('✅ UserBot Manager initialized');
-        } catch (error) {
-            console.error('Failed to initialize UserBot Manager:', error);
-        }
-    }
 }
 
 // Initialize the application when DOM is loaded
