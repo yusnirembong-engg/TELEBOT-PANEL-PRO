@@ -1757,9 +1757,11 @@ class UserBotManager {
 }
 
 // Create global instance
-window.userBotManager = new UserBotManager();
+if (typeof window !== 'undefined') {
+    window.userBotManager = new UserBotManager();
+}
 
-// Export for module usage
-if (typeof module !== 'undefined' && module.exports) {
+// Export for module usage - PERBAIKAN UTAMA
+if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
     module.exports = UserBotManager;
 }
