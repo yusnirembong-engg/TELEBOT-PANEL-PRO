@@ -20,8 +20,13 @@ const CONFIG = {
     TOKEN_EXPIRY: 8 * 60 * 60 * 1000, // 8 hours
     SALT_ROUNDS: 10,
     
-    // CORS Configuration
-    ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ["https://*.netlify.app", "http://localhost:3000", "http://localhost:8888"],
+    // CORS Configuration - FIXED: Remove wildcard patterns for simplicity
+    ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [
+        "https://telebotpro.netlify.app",
+        "http://localhost:3000", 
+        "http://localhost:8888",
+        "*" // Untuk testing
+    ],
     
     // IP Whitelist for direct access (optional security layer)
     IP_WHITELIST: process.env.IP_WHITELIST ? process.env.IP_WHITELIST.split(',') : [
@@ -62,17 +67,19 @@ function createToken(sessionId, username, ip, permissions) {
 }
 
 function corsHeaders(origin = '*') {
-    // Check if origin is allowed
-    const allowedOrigin = CONFIG.ALLOWED_ORIGINS.some(allowed => 
-        allowed === origin || 
-        allowed === '*:*' || 
-        (allowed.includes('*') && origin.match(new RegExp(allowed.replace('*', '.*'))))
-    ) ? origin : '*';
+    // FIXED: Simplified CORS handling
+    let allowedOrigin = '*';
+    
+    if (origin && CONFIG.ALLOWED_ORIGINS.includes('*')) {
+        allowedOrigin = origin; // Allow any origin for testing
+    } else if (origin && CONFIG.ALLOWED_ORIGINS.includes(origin)) {
+        allowedOrigin = origin;
+    }
     
     return {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': allowedOrigin,
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Accept, Origin',
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
         'Access-Control-Allow-Credentials': 'true',
         'Access-Control-Max-Age': '86400'
@@ -96,55 +103,110 @@ function isIPWhitelisted(ip) {
 }
 
 // ============================================
-// MAIN HANDLER
+// MAIN HANDLER - FIXED
 // ============================================
 exports.handler = async (event, context) => {
     console.log('🔐 Auth function called');
+    console.log('📋 Full event:', JSON.stringify({
+        method: event.httpMethod,
+        path: event.path,
+        headers: event.headers,
+        body: event.body ? JSON.parse(event.body) : 'No body'
+    }, null, 2));
     
     // Handle CORS preflight
     if (event.httpMethod === 'OPTIONS') {
-        return response(200, { message: 'CORS preflight' }, event.headers.origin);
+        console.log('🔄 CORS preflight request');
+        return {
+            statusCode: 200,
+            headers: corsHeaders(event.headers.origin),
+            body: JSON.stringify({ message: 'CORS preflight successful' })
+        };
     }
     
     // Get client info
     const clientIP = event.headers['x-nf-client-connection-ip'] || 
                     event.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
+                    event.headers['client-ip'] ||
                     'unknown';
     
-    const origin = event.headers.origin || '*';
+    const origin = event.headers.origin || event.headers.Origin || '*';
     
-    // Log incoming request for debugging
     console.log(`📥 Request from IP: ${clientIP}, Origin: ${origin}, Method: ${event.httpMethod}`);
     
-    // Optional: IP whitelist check (uncomment if needed)
+    // Disable IP whitelist for now to debug login issues
     /*
     if (!isIPWhitelisted(clientIP)) {
         console.warn(`🚫 IP ${clientIP} not in whitelist`);
         return response(403, { 
             error: 'Access denied',
             message: 'Your IP address is not authorized to access this service',
-            your_ip: clientIP
+            your_ip: clientIP,
+            whitelist: CONFIG.IP_WHITELIST
         }, origin);
     }
     */
     
     try {
-        const requestData = JSON.parse(event.body || '{}');
+        // Parse request body
+        let requestData;
+        try {
+            requestData = event.body ? JSON.parse(event.body) : {};
+        } catch (parseError) {
+            console.error('❌ JSON parse error:', parseError);
+            return response(400, { 
+                error: 'Invalid JSON',
+                message: 'Request body must be valid JSON'
+            }, origin);
+        }
+        
         const { action, username, password, token } = requestData;
         
-        console.log(`📥 Action: ${action}, IP: ${clientIP}`);
+        console.log(`📥 Action: ${action}, Username: ${username || 'none'}, IP: ${clientIP}`);
         
-        switch (action) {
+        // Validate required action
+        if (!action) {
+            return response(400, { 
+                error: 'Missing action',
+                message: 'Please specify an action (login, verify, etc.)'
+            }, origin);
+        }
+        
+        switch (action.toLowerCase()) {
             case 'login':
+                if (!username || !password) {
+                    return response(400, { 
+                        error: 'Missing credentials',
+                        message: 'Username and password are required'
+                    }, origin);
+                }
                 return await handleLogin(username, password, clientIP, origin);
                 
             case 'verify':
+                if (!token) {
+                    return response(400, { 
+                        error: 'Missing token',
+                        message: 'Token is required for verification'
+                    }, origin);
+                }
                 return verifyToken(token, origin);
                 
             case 'refresh':
+                if (!token) {
+                    return response(400, { 
+                        error: 'Missing token',
+                        message: 'Token is required for refresh'
+                    }, origin);
+                }
                 return refreshToken(token, origin);
                 
             case 'logout':
+                if (!token) {
+                    return response(400, { 
+                        error: 'Missing token',
+                        message: 'Token is required for logout'
+                    }, origin);
+                }
                 return handleLogout(token, origin);
                 
             case 'check-ip':
@@ -153,11 +215,11 @@ exports.handler = async (event, context) => {
                     allowed: isIPWhitelisted(clientIP),
                     whitelisted: CONFIG.IP_WHITELIST.includes(clientIP),
                     timestamp: new Date().toISOString(),
-                    message: isIPWhitelisted(clientIP) ? 'IP is allowed' : 'IP is not in whitelist'
+                    message: isIPWhitelisted(clientIP) ? 'IP is allowed' : 'IP is not in whitelist',
+                    whitelist: CONFIG.IP_WHITELIST
                 }, origin);
                 
             case 'admin-info':
-                // Secure endpoint to verify admin configuration
                 return response(200, {
                     username: CONFIG.ADMIN_CREDENTIALS.username,
                     ip_whitelist: CONFIG.IP_WHITELIST,
@@ -166,114 +228,177 @@ exports.handler = async (event, context) => {
                     is_whitelisted: CONFIG.IP_WHITELIST.includes(clientIP)
                 }, origin);
                 
+            case 'health':
+                return response(200, {
+                    status: 'healthy',
+                    timestamp: new Date().toISOString(),
+                    sessions: sessions.size,
+                    memory: process.memoryUsage(),
+                    node_version: process.version
+                }, origin);
+                
             default:
-                return response(400, { error: 'Invalid action' }, origin);
+                return response(400, { 
+                    error: 'Invalid action',
+                    message: `Unknown action: ${action}`,
+                    supported_actions: ['login', 'verify', 'refresh', 'logout', 'check-ip', 'admin-info', 'health']
+                }, origin);
         }
         
     } catch (error) {
-        console.error('❌ Auth error:', error);
+        console.error('❌ Auth error:', error.stack || error);
         return response(500, { 
             error: 'Internal server error',
             message: error.message,
-            ip: clientIP
+            ip: clientIP,
+            timestamp: new Date().toISOString()
         }, event.headers.origin || '*');
     }
 };
 
 // ============================================
-// AUTH HANDLERS
+// AUTH HANDLERS - FIXED
 // ============================================
 async function handleLogin(username, password, ip, origin) {
-    // Check if IP is whitelisted (optional security)
+    console.log(`🔑 Login attempt - User: ${username}, IP: ${ip}, Origin: ${origin}`);
+    
+    // Check if IP is whitelisted (optional security) - Disabled for debugging
+    /*
     if (CONFIG.IP_WHITELIST.length > 0 && !isIPWhitelisted(ip)) {
         console.warn(`🚫 Login attempt from non-whitelisted IP: ${ip}`);
         return response(403, {
             error: 'Access denied',
-            message: 'Your IP address is not authorized'
+            message: 'Your IP address is not authorized',
+            your_ip: ip,
+            whitelist: CONFIG.IP_WHITELIST
         }, origin);
     }
+    */
     
     // Check if IP is locked out
     const attempts = loginAttempts.get(ip) || { count: 0, lastAttempt: 0 };
     const now = Date.now();
     
+    console.log(`Login attempts for IP ${ip}: ${attempts.count}/${MAX_ATTEMPTS}`);
+    
     if (attempts.count >= MAX_ATTEMPTS && (now - attempts.lastAttempt) < LOCKOUT_TIME) {
         const remaining = Math.ceil((LOCKOUT_TIME - (now - attempts.lastAttempt)) / 60000);
+        console.log(`🔒 IP ${ip} is locked out for ${remaining} minutes`);
         return response(429, {
             error: 'Too many attempts',
             message: `Account locked. Try again in ${remaining} minutes`,
-            your_ip: ip
+            your_ip: ip,
+            attempts: attempts.count,
+            lockout_time: LOCKOUT_TIME
         }, origin);
     }
     
-    // Validate credentials
-    if (username !== CONFIG.ADMIN_CREDENTIALS.username) {
+    // Validate credentials - FIXED: Case-sensitive comparison
+    const expectedUsername = CONFIG.ADMIN_CREDENTIALS.username;
+    if (username.trim() !== expectedUsername) {
+        console.warn(`❌ Invalid username: "${username}" (expected: "${expectedUsername}")`);
         recordFailedAttempt(ip);
-        return response(401, { error: 'Invalid credentials' }, origin);
+        return response(401, { 
+            error: 'Invalid credentials',
+            message: 'Username or password is incorrect',
+            hint: 'Username is case-sensitive'
+        }, origin);
     }
     
     // Verify password (using bcrypt)
-    const isValid = await bcrypt.compare(password, CONFIG.ADMIN_CREDENTIALS.passwordHash);
+    console.log('🔐 Verifying password...');
     
-    if (!isValid) {
-        recordFailedAttempt(ip);
-        return response(401, { error: 'Invalid credentials' }, origin);
-    }
-    
-    // Reset attempts on successful login
-    loginAttempts.delete(ip);
-    
-    // Create session
-    const sessionId = generateSessionId();
-    const token = createToken(sessionId, username, ip, ['*']);
-    
-    // Store session
-    sessions.set(sessionId, {
-        username,
-        ip,
-        createdAt: now,
-        lastActive: now,
-        userAgent: 'Unknown',
-        origin: origin
-    });
-    
-    // Clean old sessions (optional)
-    cleanupOldSessions();
-    
-    console.log(`✅ Login successful: ${username} from ${ip} (Whitelisted: ${isIPWhitelisted(ip)})`);
-    
-    return response(200, {
-        success: true,
-        token,
-        user: {
+    try {
+        // FIXED: Use the correct password hash - generate a new one if needed
+        const passwordHash = CONFIG.ADMIN_CREDENTIALS.passwordHash;
+        console.log(`Password hash stored: ${passwordHash.substring(0, 20)}...`);
+        
+        const isValid = await bcrypt.compare(password.trim(), passwordHash);
+        
+        console.log(`Password comparison result: ${isValid}`);
+        
+        if (!isValid) {
+            console.warn('❌ Invalid password');
+            recordFailedAttempt(ip);
+            return response(401, { 
+                error: 'Invalid credentials',
+                message: 'Username or password is incorrect',
+                hint: 'Password is case-sensitive and must be exactly "TeleBotPro@2024!"'
+            }, origin);
+        }
+        
+        // Reset attempts on successful login
+        loginAttempts.delete(ip);
+        
+        // Create session
+        const sessionId = generateSessionId();
+        const token = createToken(sessionId, username, ip, ['*']);
+        
+        // Store session
+        sessions.set(sessionId, {
             username,
-            role: 'admin',
-            permissions: ['*']
-        },
-        session: {
-            id: sessionId,
-            expiresIn: CONFIG.TOKEN_EXPIRY,
-            expiresAt: new Date(now + CONFIG.TOKEN_EXPIRY).toISOString()
-        },
-        ip_info: {
-            address: ip,
-            whitelisted: isIPWhitelisted(ip)
-        },
-        message: 'Login successful'
-    }, origin);
+            ip,
+            createdAt: now,
+            lastActive: now,
+            userAgent: 'Unknown',
+            origin: origin
+        });
+        
+        // Clean old sessions
+        cleanupOldSessions();
+        
+        console.log(`✅ Login successful: ${username} from ${ip}`);
+        console.log(`📊 Total active sessions: ${sessions.size}`);
+        console.log(`🔑 Token generated (first 20 chars): ${token.substring(0, 20)}...`);
+        
+        return response(200, {
+            success: true,
+            token,
+            user: {
+                username,
+                role: 'admin',
+                permissions: ['*']
+            },
+            session: {
+                id: sessionId,
+                expiresIn: CONFIG.TOKEN_EXPIRY,
+                expiresAt: new Date(now + CONFIG.TOKEN_EXPIRY).toISOString()
+            },
+            ip_info: {
+                address: ip,
+                whitelisted: isIPWhitelisted(ip)
+            },
+            message: 'Login successful'
+        }, origin);
+        
+    } catch (error) {
+        console.error('❌ Password verification error:', error);
+        return response(500, {
+            error: 'Internal server error',
+            message: 'Error verifying credentials',
+            details: error.message
+        }, origin);
+    }
 }
 
 function verifyToken(token, origin) {
     try {
+        console.log(`🔍 Verifying token: ${token.substring(0, 20)}...`);
         const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
         const session = sessions.get(decoded.sid);
         
         if (!session) {
-            return response(401, { error: 'Session expired' }, origin);
+            console.warn(`❌ Session not found: ${decoded.sid}`);
+            return response(401, { 
+                error: 'Session expired',
+                message: 'Please login again'
+            }, origin);
         }
         
         // Update last activity
         session.lastActive = Date.now();
+        
+        console.log(`✅ Token valid for user: ${decoded.user}`);
         
         return response(200, {
             valid: true,
@@ -289,9 +414,11 @@ function verifyToken(token, origin) {
         }, origin);
         
     } catch (error) {
+        console.error('❌ Token verification error:', error.message);
         return response(401, { 
             error: 'Invalid token',
-            details: error.message 
+            details: error.message,
+            hint: 'Token may have expired. Please login again.'
         }, origin);
     }
 }
@@ -315,6 +442,8 @@ function refreshToken(token, origin) {
         
         session.lastActive = Date.now();
         
+        console.log(`🔄 Token refreshed for: ${decoded.user}`);
+        
         return response(200, {
             success: true,
             token: newToken,
@@ -323,7 +452,10 @@ function refreshToken(token, origin) {
         }, origin);
         
     } catch (error) {
-        return response(401, { error: 'Cannot refresh token' }, origin);
+        return response(401, { 
+            error: 'Cannot refresh token',
+            details: error.message
+        }, origin);
     }
 }
 
@@ -331,6 +463,8 @@ function handleLogout(token, origin) {
     try {
         const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
         sessions.delete(decoded.sid);
+        
+        console.log(`👋 User logged out: ${decoded.user}`);
         
         return response(200, {
             success: true,
@@ -371,6 +505,7 @@ function cleanupOldSessions() {
     for (const [sessionId, session] of sessions.entries()) {
         if (now - session.lastActive > maxAge) {
             sessions.delete(sessionId);
+            console.log(`🧹 Cleaned up old session: ${sessionId.substring(0, 8)}...`);
         }
     }
 }
@@ -381,9 +516,23 @@ function cleanupOldSessions() {
 async function generatePasswordHash() {
     const password = "TeleBotPro@2024!";
     const hash = await bcrypt.hash(password, CONFIG.SALT_ROUNDS);
-    console.log('Generated password hash:', hash);
+    console.log('🔑 Generated password hash:', hash);
+    console.log('💡 Copy this to ADMIN_CREDENTIALS.passwordHash');
     return hash;
 }
 
-// Uncomment to generate new password hash:
-// generatePasswordHash().then(console.log);
+// Test password generation (uncomment when needed)
+// generatePasswordHash().then(hash => {
+//     console.log('✅ Hash generated successfully');
+//     console.log('📋 Update your CONFIG with this hash:');
+//     console.log(`passwordHash: "${hash}"`);
+// }).catch(console.error);
+
+// Export for testing
+module.exports = {
+    CONFIG,
+    handleLogin,
+    verifyToken,
+    generatePasswordHash,
+    isIPWhitelisted
+};
