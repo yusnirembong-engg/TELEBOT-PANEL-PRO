@@ -9,6 +9,7 @@ class UserBotManager {
         this.currentSession = null;
         this.autoTextJobs = new Map();
         this.apiBase = '/.netlify/functions';
+        this.updateInterval = null;
         
         // Initialize
         this.init();
@@ -18,6 +19,24 @@ class UserBotManager {
         console.log('👤 UserBot Manager initialized');
         this.loadAutoTextJobs();
         this.setupEventListeners();
+        this.startPeriodicUpdates();
+    }
+    
+    // Start periodic updates for session status
+    startPeriodicUpdates() {
+        // Clear existing interval
+        if (this.updateInterval) {
+            clearInterval(this.updateInterval);
+        }
+        
+        // Update stats every 30 seconds
+        this.updateInterval = setInterval(() => {
+            if (this.currentSection === 'telegram') {
+                this.updateSessionStatuses();
+            }
+        }, 30000);
+        
+        console.log('🔄 Started periodic session updates');
     }
     
     // Load auto-text jobs from localStorage
@@ -51,6 +70,7 @@ class UserBotManager {
         // Listen for section changes
         if (window.app) {
             window.app.on('section-change', (section) => {
+                this.currentSection = section;
                 if (section === 'telegram') {
                     this.showUserBotInterface();
                 }
@@ -85,7 +105,7 @@ class UserBotManager {
             this.setupUserBotEventHandlers();
             
             // Update session statuses
-            this.updateSessionStatuses();
+            await this.updateSessionStatuses();
             
         } catch (error) {
             contentElement.innerHTML = this.getErrorHTML(error.message);
@@ -725,7 +745,7 @@ class UserBotManager {
         });
         
         // Session card actions
-        document.querySelectorAll('[data-action]').forEach(button => {
+        document.querySelectorAll('.session-card [data-action]').forEach(button => {
             button.addEventListener('click', (e) => {
                 const action = e.currentTarget.getAttribute('data-action');
                 const sessionCard = e.currentTarget.closest('.session-card');
@@ -779,6 +799,11 @@ class UserBotManager {
                 this.filterSessions(sessionSearch?.value, sessionFilter.value);
             });
         }
+        
+        // Update stats when modal opens/closes
+        document.getElementById('sessionDetailsModal')?.addEventListener('modal-close', () => {
+            this.updateSessionStatuses();
+        });
     }
     
     // Setup auto-text event handlers
@@ -799,7 +824,7 @@ class UserBotManager {
         });
         
         // Job card actions
-        document.querySelectorAll('[data-action]').forEach(button => {
+        document.querySelectorAll('.job-card [data-action]').forEach(button => {
             button.addEventListener('click', (e) => {
                 const action = e.currentTarget.getAttribute('data-action');
                 const jobCard = e.currentTarget.closest('.job-card');
@@ -1089,6 +1114,7 @@ class UserBotManager {
         // Clear existing interval if any
         if (job.intervalId) {
             clearInterval(job.intervalId);
+            job.intervalId = null;
         }
         
         // Schedule the job
@@ -1108,18 +1134,40 @@ class UserBotManager {
         if (!job || job.status !== 'running') return;
         
         try {
+            // Check if session is still connected
+            if (!window.telegramManager) {
+                job.status = 'error';
+                this.autoTextJobs.set(jobId, job);
+                this.saveAutoTextJobs();
+                return;
+            }
+            
+            const session = window.telegramManager.getSession(job.sessionId);
+            if (!session || session.status !== 'connected') {
+                job.status = 'error';
+                this.autoTextJobs.set(jobId, job);
+                this.saveAutoTextJobs();
+                return;
+            }
+            
             // Send to each target
             for (const target of job.targets) {
-                const result = await window.telegramManager?.sendMessage(
-                    job.sessionId,
-                    target,
-                    job.message
-                );
-                
-                if (result?.success) {
-                    job.stats.successful++;
-                    job.stats.totalSent++;
-                } else {
+                try {
+                    const result = await window.telegramManager.sendMessage(
+                        job.sessionId,
+                        target,
+                        job.message
+                    );
+                    
+                    if (result?.success) {
+                        job.stats.successful++;
+                        job.stats.totalSent++;
+                    } else {
+                        job.stats.failed++;
+                        job.stats.totalSent++;
+                    }
+                } catch (error) {
+                    console.error(`Failed to send to ${target}:`, error);
                     job.stats.failed++;
                     job.stats.totalSent++;
                 }
@@ -1134,17 +1182,32 @@ class UserBotManager {
                 job.status = 'completed';
                 if (job.intervalId) {
                     clearInterval(job.intervalId);
+                    job.intervalId = null;
                 }
             }
             
             this.autoTextJobs.set(jobId, job);
             this.saveAutoTextJobs();
             
+            // Update UI if on auto-text page
+            if (this.currentSection === 'auto-text') {
+                this.refreshJobs();
+            }
+            
         } catch (error) {
             console.error(`Job execution error: ${error.message}`);
             job.status = 'error';
+            if (job.intervalId) {
+                clearInterval(job.intervalId);
+                job.intervalId = null;
+            }
             this.autoTextJobs.set(jobId, job);
             this.saveAutoTextJobs();
+            
+            // Update UI
+            if (this.currentSection === 'auto-text') {
+                this.refreshJobs();
+            }
         }
     }
     
@@ -1185,32 +1248,38 @@ class UserBotManager {
                 job.status = 'running';
                 this.scheduleJob(jobId);
                 this.showToast('Job started', 'success');
+                this.refreshJobs();
                 break;
                 
             case 'pause-job':
                 job.status = 'paused';
                 if (job.intervalId) {
                     clearInterval(job.intervalId);
+                    job.intervalId = null;
                 }
                 this.autoTextJobs.set(jobId, job);
                 this.saveAutoTextJobs();
                 this.showToast('Job paused', 'warning');
+                this.refreshJobs();
                 break;
                 
             case 'stop-job':
                 job.status = 'stopped';
                 if (job.intervalId) {
                     clearInterval(job.intervalId);
+                    job.intervalId = null;
                 }
                 this.autoTextJobs.set(jobId, job);
                 this.saveAutoTextJobs();
                 this.showToast('Job stopped', 'info');
+                this.refreshJobs();
                 break;
                 
             case 'delete-job':
                 if (confirm('Are you sure you want to delete this job?')) {
                     if (job.intervalId) {
                         clearInterval(job.intervalId);
+                        job.intervalId = null;
                     }
                     this.autoTextJobs.delete(jobId);
                     this.saveAutoTextJobs();
@@ -1227,21 +1296,15 @@ class UserBotManager {
         
         switch (action) {
             case 'connect-all':
-                this.showToast('Connecting all sessions...', 'info');
-                // Implementation would go here
+                await this.connectAllSessions();
                 break;
                 
             case 'disconnect-all':
-                if (confirm('Are you sure you want to disconnect all sessions?')) {
-                    await window.telegramManager.disconnectAllSessions();
-                    this.showToast('All sessions disconnected', 'success');
-                    this.refreshSessions();
-                }
+                await this.disconnectAllSessions();
                 break;
                 
             case 'refresh-all':
-                await this.refreshSessions();
-                this.showToast('All sessions refreshed', 'success');
+                await this.refreshAllSessions();
                 break;
                 
             case 'open-auto-text':
@@ -1249,7 +1312,7 @@ class UserBotManager {
                 break;
                 
             case 'open-chat-manager':
-                // Implementation would go here
+                this.showToast('Chat manager coming soon!', 'info');
                 break;
         }
     }
@@ -1260,23 +1323,30 @@ class UserBotManager {
         
         switch (action) {
             case 'start-all-jobs':
+                let started = 0;
                 jobs.filter(j => j.status === 'paused').forEach(job => {
                     job.status = 'running';
                     this.scheduleJob(job.id);
+                    started++;
                 });
-                this.showToast('All jobs started', 'success');
+                this.showToast(`Started ${started} job(s)`, 'success');
+                this.refreshJobs();
                 break;
                 
             case 'pause-all-jobs':
+                let paused = 0;
                 jobs.filter(j => j.status === 'running').forEach(job => {
                     job.status = 'paused';
                     if (job.intervalId) {
                         clearInterval(job.intervalId);
+                        job.intervalId = null;
                     }
                     this.autoTextJobs.set(job.id, job);
+                    paused++;
                 });
                 this.saveAutoTextJobs();
-                this.showToast('All jobs paused', 'warning');
+                this.showToast(`Paused ${paused} job(s)`, 'warning');
+                this.refreshJobs();
                 break;
                 
             case 'stop-all-jobs':
@@ -1284,17 +1354,82 @@ class UserBotManager {
                     job.status = 'stopped';
                     if (job.intervalId) {
                         clearInterval(job.intervalId);
+                        job.intervalId = null;
                     }
                     this.autoTextJobs.set(job.id, job);
                 });
                 this.saveAutoTextJobs();
                 this.showToast('All jobs stopped', 'info');
+                this.refreshJobs();
                 break;
                 
             case 'refresh-all-jobs':
                 this.refreshJobs();
                 this.showToast('All jobs refreshed', 'success');
                 break;
+        }
+    }
+    
+    // Connect all sessions
+    async connectAllSessions() {
+        if (!window.telegramManager) return;
+        
+        this.showToast('Connecting all sessions...', 'info');
+        
+        try {
+            const sessions = window.telegramManager.getAllSessions();
+            const disconnectedSessions = sessions.filter(s => s.status === 'disconnected');
+            
+            if (disconnectedSessions.length === 0) {
+                this.showToast('All sessions are already connected', 'info');
+                return;
+            }
+            
+            for (const session of disconnectedSessions) {
+                try {
+                    await window.telegramManager.connectSession(session.sessionId);
+                } catch (error) {
+                    console.error(`Failed to connect session ${session.sessionId}:`, error);
+                }
+            }
+            
+            this.showToast(`Attempted to connect ${disconnectedSessions.length} session(s)`, 'success');
+            this.refreshSessions();
+            
+        } catch (error) {
+            this.showToast(`Error connecting sessions: ${error.message}`, 'error');
+        }
+    }
+    
+    // Disconnect all sessions
+    async disconnectAllSessions() {
+        if (!window.telegramManager) return;
+        
+        if (!confirm('Are you sure you want to disconnect all sessions?')) {
+            return;
+        }
+        
+        this.showToast('Disconnecting all sessions...', 'info');
+        
+        try {
+            await window.telegramManager.disconnectAllSessions();
+            this.showToast('All sessions disconnected', 'success');
+            this.refreshSessions();
+        } catch (error) {
+            this.showToast(`Error disconnecting sessions: ${error.message}`, 'error');
+        }
+    }
+    
+    // Refresh all sessions
+    async refreshAllSessions() {
+        if (!window.telegramManager) return;
+        
+        this.showToast('Refreshing all sessions...', 'info');
+        
+        try {
+            await this.refreshSessions();
+        } catch (error) {
+            this.showToast(`Error refreshing sessions: ${error.message}`, 'error');
         }
     }
     
@@ -1594,7 +1729,11 @@ class UserBotManager {
             // Update status for all sessions
             const sessions = window.telegramManager.getAllSessions();
             for (const session of sessions) {
-                await window.telegramManager.getSessionStatus(session.sessionId);
+                try {
+                    await window.telegramManager.getSessionStatus(session.sessionId);
+                } catch (error) {
+                    console.error(`Failed to update status for session ${session.sessionId}:`, error);
+                }
             }
             
             // Update UI
@@ -1614,6 +1753,7 @@ class UserBotManager {
             const result = await window.telegramManager.getUserDialogs(sessionId);
             if (result.success) {
                 this.showToast(`Loaded ${result.count} dialogs`, 'success');
+                this.updateSessionStatuses();
             } else {
                 this.showToast(`Failed: ${result.error}`, 'error');
             }
@@ -1644,25 +1784,77 @@ class UserBotManager {
         this.showAutoTextInterface();
     }
 
+    // Update session statuses - FIXED VERSION
     async updateSessionStatuses() {
-        if (!window.telegramManager) return;
+        if (!window.telegramManager) {
+            console.warn('Telegram manager not available');
+            return;
+        }
         
-        const sessions = window.telegramManager.getAllSessions();
-        
-        // Update counts in UI
-        const connectedCount = sessions.filter(s => s.status === 'connected').length;
-        const totalMessages = sessions.reduce((sum, s) => sum + (s.stats?.messagesSent || 0), 0);
-        const totalDialogs = sessions.reduce((sum, s) => sum + (s.stats?.dialogsLoaded || 0), 0);
-        
-        // Perbaikan: Hapus optional chaining untuk textContent
-        const totalMessagesEl = document.getElementById('totalMessagesCount');
-        const totalDialogsEl = document.getElementById('totalDialogsCount');
-        const activeSessionsEl = document.getElementById('activeSessionsCount');
-        
-        if (connectedEl) connectedEl.textContent = connectedCount;
-        if (totalMessagesEl) totalMessagesEl.textContent = totalMessages;
-        if (totalDialogsEl) totalDialogsEl.textContent = totalDialogs;
-        if (activeSessionsEl) activeSessionsEl.textContent = sessions.length;
+        try {
+            const sessions = window.telegramManager.getAllSessions();
+            
+            // Update counts in UI - FIXED
+            const connectedCount = sessions.filter(s => s.status === 'connected').length;
+            const totalMessages = sessions.reduce((sum, s) => sum + (s.stats?.messagesSent || 0), 0);
+            const totalDialogs = sessions.reduce((sum, s) => sum + (s.stats?.dialogsLoaded || 0), 0);
+            
+            // Get DOM elements with correct IDs
+            const connectedSessionsEl = document.getElementById('connectedSessionsCount');
+            const totalMessagesEl = document.getElementById('totalMessagesCount');
+            const totalDialogsEl = document.getElementById('totalDialogsCount');
+            const activeSessionsEl = document.getElementById('activeSessionsCount');
+            
+            // Update the UI elements if they exist
+            if (connectedSessionsEl) connectedSessionsEl.textContent = connectedCount;
+            if (totalMessagesEl) totalMessagesEl.textContent = totalMessages;
+            if (totalDialogsEl) totalDialogsEl.textContent = totalDialogs;
+            if (activeSessionsEl) activeSessionsEl.textContent = sessions.length;
+            
+            // Also update session cards if they exist
+            sessions.forEach(session => {
+                const sessionCard = document.querySelector(`.session-card[data-session-id="${session.sessionId}"]`);
+                if (sessionCard) {
+                    // Update status indicator
+                    const statusElement = sessionCard.querySelector('.session-status');
+                    if (statusElement) {
+                        const statusClass = {
+                            'connected': 'success',
+                            'disconnected': 'danger',
+                            'reconnecting': 'warning',
+                            'verifying': 'info'
+                        }[session.status] || 'secondary';
+                        
+                        const statusIcon = {
+                            'connected': 'fa-check-circle',
+                            'disconnected': 'fa-times-circle',
+                            'reconnecting': 'fa-sync-alt',
+                            'verifying': 'fa-shield-alt'
+                        }[session.status] || 'fa-question-circle';
+                        
+                        statusElement.className = `session-status status-${statusClass}`;
+                        statusElement.innerHTML = `<i class="fas ${statusIcon}"></i> ${session.status}`;
+                    }
+                    
+                    // Update stats
+                    const messageStat = sessionCard.querySelector('.stat-item:nth-child(1) strong');
+                    const dialogStat = sessionCard.querySelector('.stat-item:nth-child(2) strong');
+                    const uptimeStat = sessionCard.querySelector('.stat-item:nth-child(3) strong');
+                    
+                    if (messageStat) messageStat.textContent = session.stats?.messagesSent || 0;
+                    if (dialogStat) dialogStat.textContent = session.stats?.dialogsLoaded || 0;
+                    if (uptimeStat) {
+                        uptimeStat.textContent = window.telegramManager.getSessionUptime(session.sessionId) || '0s';
+                    }
+                }
+            });
+            
+            console.log(`✅ Updated session stats: ${connectedCount} connected, ${totalMessages} messages, ${totalDialogs} dialogs`);
+            
+        } catch (error) {
+            console.error('Failed to update session statuses:', error);
+            this.showToast('Failed to update session statuses', 'error');
+        }
     }
     
     // Filter sessions
@@ -1725,6 +1917,45 @@ class UserBotManager {
         } else {
             // Fallback console log
             console.log(`[${type.toUpperCase()}] ${message}`);
+            
+            // Create a simple toast if app.toast is not available
+            this.createSimpleToast(message, type);
+        }
+    }
+    
+    // Create simple toast notification
+    createSimpleToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `simple-toast toast-${type}`;
+        toast.innerHTML = `
+            <div class="toast-content">
+                <i class="fas ${this.getToastIcon(type)}"></i>
+                <span>${message}</span>
+            </div>
+            <button class="toast-close">&times;</button>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // Auto remove after 3 seconds
+        setTimeout(() => {
+            toast.remove();
+        }, 3000);
+        
+        // Close button
+        toast.querySelector('.toast-close')?.addEventListener('click', () => {
+            toast.remove();
+        });
+    }
+    
+    // Get toast icon based on type
+    getToastIcon(type) {
+        switch (type) {
+            case 'success': return 'fa-check-circle';
+            case 'error': return 'fa-exclamation-circle';
+            case 'warning': return 'fa-exclamation-triangle';
+            case 'info': return 'fa-info-circle';
+            default: return 'fa-info-circle';
         }
     }
     
@@ -1755,17 +1986,42 @@ class UserBotManager {
     
     // Truncate text
     truncateText(text, maxLength) {
-        if (text.length <= maxLength) return text;
+        if (!text || text.length <= maxLength) return text;
         return text.substring(0, maxLength) + '...';
+    }
+    
+    // Clean up resources
+    cleanup() {
+        if (this.updateInterval) {
+            clearInterval(this.updateInterval);
+            this.updateInterval = null;
+        }
+        
+        // Clear all job intervals
+        this.autoTextJobs.forEach(job => {
+            if (job.intervalId) {
+                clearInterval(job.intervalId);
+                job.intervalId = null;
+            }
+        });
+        
+        console.log('🧹 UserBot Manager cleaned up');
     }
 }
 
 // Create global instance
 if (typeof window !== 'undefined') {
     window.userBotManager = new UserBotManager();
+    
+    // Clean up on page unload
+    window.addEventListener('beforeunload', () => {
+        if (window.userBotManager) {
+            window.userBotManager.cleanup();
+        }
+    });
 }
 
-// Export for module usage - FIXED
+// Export for module usage
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { UserBotManager };  // Perbaikan di sini
+    module.exports = { UserBotManager };
 }
