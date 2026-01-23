@@ -19,6 +19,9 @@ class TelegramManager {
             messageQueueLimit: 1000
         };
         
+        // Event listeners
+        this.eventListeners = {};
+        
         // Initialize
         this.init();
     }
@@ -83,11 +86,58 @@ class TelegramManager {
         }, 1000);
     }
     
+    // Get authentication headers
+    getAuthHeaders() {
+        try {
+            // Prioritize authManager if available
+            if (window.authManager && window.authManager.getAuthHeaders) {
+                return window.authManager.getAuthHeaders();
+            }
+            
+            // Fallback: get token from localStorage
+            const token = localStorage.getItem('auth_token');
+            if (!token) {
+                console.warn('No authentication token found');
+                return {
+                    'Content-Type': 'application/json'
+                };
+            }
+            
+            return {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            };
+        } catch (error) {
+            console.error('Error getting auth headers:', error);
+            return {
+                'Content-Type': 'application/json'
+            };
+        }
+    }
+    
+    // Validate authentication
+    validateAuthentication() {
+        try {
+            // Check authManager first
+            if (window.authManager && window.authManager.isAuthenticated) {
+                return window.authManager.isAuthenticated();
+            }
+            
+            // Fallback: check token in localStorage
+            const token = localStorage.getItem('auth_token');
+            return !!token;
+        } catch (error) {
+            console.error('Authentication validation error:', error);
+            return false;
+        }
+    }
+    
     // Connect a user bot
     async connectUserBot(apiId, apiHash, phoneNumber) {
         try {
-            if (!window.authManager || !window.authManager.isAuthenticated()) {
-                throw new Error('Authentication required');
+            // Validate authentication
+            if (!this.validateAuthentication()) {
+                throw new Error('Authentication required. Please login first.');
             }
             
             // Check session limit
@@ -97,9 +147,12 @@ class TelegramManager {
             
             console.log(`Connecting user bot with API ID: ${apiId}`);
             
+            // Get auth headers
+            const headers = this.getAuthHeaders();
+            
             const response = await fetch(`${this.apiBase}/telegram-api`, {
                 method: 'POST',
-                headers: window.authManager.getAuthHeaders(),
+                headers: headers,
                 body: JSON.stringify({
                     action: 'connect',
                     apiId: apiId,
@@ -108,50 +161,56 @@ class TelegramManager {
                 })
             });
             
+            // Check response status
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            }
+            
             const data = await response.json();
             
-            if (response.ok) {
-                if (data.requiresVerification) {
-                    // Need verification code
-                    return {
-                        success: true,
-                        requiresVerification: true,
-                        sessionId: data.sessionId,
-                        message: data.message
-                    };
-                } else {
-                    // Connected successfully
-                    const session = {
-                        sessionId: data.sessionId,
-                        apiId: apiId,
-                        apiHash: this.maskApiHash(apiHash),
-                        phoneNumber: phoneNumber,
-                        user: data.user,
-                        status: 'connected',
-                        connectedAt: new Date().toISOString(),
-                        lastActivity: new Date().toISOString(),
-                        stats: {
-                            messagesSent: 0,
-                            messagesReceived: 0,
-                            dialogsLoaded: 0
-                        }
-                    };
-                    
-                    this.userSessions.set(data.sessionId, session);
-                    this.saveSessionsToStorage();
-                    
-                    console.log(`✅ User bot connected: ${data.user?.username || data.user?.phone}`);
-                    
-                    // Setup monitoring
-                    this.setupSessionMonitoring(data.sessionId);
-                    
-                    return {
-                        success: true,
-                        sessionId: data.sessionId,
-                        user: data.user,
-                        message: 'Connected successfully'
-                    };
-                }
+            if (data.requiresVerification) {
+                // Need verification code
+                return {
+                    success: true,
+                    requiresVerification: true,
+                    sessionId: data.sessionId,
+                    message: data.message
+                };
+            } else if (data.success) {
+                // Connected successfully
+                const session = {
+                    sessionId: data.sessionId,
+                    apiId: apiId,
+                    apiHash: this.maskApiHash(apiHash),
+                    phoneNumber: phoneNumber,
+                    user: data.user,
+                    status: 'connected',
+                    connectedAt: new Date().toISOString(),
+                    lastActivity: new Date().toISOString(),
+                    stats: {
+                        messagesSent: 0,
+                        messagesReceived: 0,
+                        dialogsLoaded: 0
+                    }
+                };
+                
+                this.userSessions.set(data.sessionId, session);
+                this.saveSessionsToStorage();
+                
+                console.log(`✅ User bot connected: ${data.user?.username || data.user?.phone || phoneNumber}`);
+                
+                // Setup monitoring
+                this.setupSessionMonitoring(data.sessionId);
+                
+                this.emitEvent('session-connected', { sessionId: data.sessionId, user: data.user });
+                
+                return {
+                    success: true,
+                    sessionId: data.sessionId,
+                    user: data.user,
+                    message: 'Connected successfully'
+                };
             } else {
                 console.error('Connection failed:', data.error);
                 return {
@@ -163,7 +222,7 @@ class TelegramManager {
             console.error('Connection error:', error);
             return {
                 success: false,
-                error: error.message
+                error: error.message || 'Unknown error occurred'
             };
         }
     }
@@ -171,8 +230,9 @@ class TelegramManager {
     // Verify connection with code
     async verifyConnection(sessionId, verificationCode) {
         try {
-            if (!window.authManager || !window.authManager.isAuthenticated()) {
-                throw new Error('Authentication required');
+            // Validate authentication
+            if (!this.validateAuthentication()) {
+                throw new Error('Authentication required. Please login first.');
             }
             
             const session = this.userSessions.get(sessionId);
@@ -182,15 +242,23 @@ class TelegramManager {
             
             console.log(`Verifying session: ${sessionId}`);
             
+            // Get auth headers
+            const headers = this.getAuthHeaders();
+            
             const response = await fetch(`${this.apiBase}/telegram-api`, {
                 method: 'POST',
-                headers: window.authManager.getAuthHeaders(),
+                headers: headers,
                 body: JSON.stringify({
                     action: 'verify',
                     sessionId: sessionId,
                     verificationCode: verificationCode
                 })
             });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            }
             
             const data = await response.json();
             
@@ -208,6 +276,8 @@ class TelegramManager {
                 
                 // Setup monitoring
                 this.setupSessionMonitoring(sessionId);
+                
+                this.emitEvent('session-verified', { sessionId: sessionId, user: data.user });
                 
                 return {
                     success: true,
@@ -234,8 +304,9 @@ class TelegramManager {
     // Send message through user bot
     async sendMessage(sessionId, chatId, message, options = {}) {
         try {
-            if (!window.authManager || !window.authManager.isAuthenticated()) {
-                throw new Error('Authentication required');
+            // Validate authentication
+            if (!this.validateAuthentication()) {
+                throw new Error('Authentication required. Please login first.');
             }
             
             const session = this.userSessions.get(sessionId);
@@ -249,9 +320,12 @@ class TelegramManager {
             
             console.log(`Sending message via session ${sessionId} to chat ${chatId}`);
             
+            // Get auth headers
+            const headers = this.getAuthHeaders();
+            
             const response = await fetch(`${this.apiBase}/telegram-api`, {
                 method: 'POST',
-                headers: window.authManager.getAuthHeaders(),
+                headers: headers,
                 body: JSON.stringify({
                     action: 'send',
                     sessionId: sessionId,
@@ -260,6 +334,11 @@ class TelegramManager {
                     ...options
                 })
             });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            }
             
             const data = await response.json();
             
@@ -271,6 +350,12 @@ class TelegramManager {
                 this.saveSessionsToStorage();
                 
                 console.log(`✅ Message sent via session ${sessionId}`);
+                
+                this.emitEvent('message-sent', { 
+                    sessionId: sessionId, 
+                    chatId: chatId, 
+                    messageId: data.messageId 
+                });
                 
                 return {
                     success: true,
@@ -296,8 +381,9 @@ class TelegramManager {
     // Schedule a message
     async scheduleMessage(sessionId, chatId, message, scheduleTime, options = {}) {
         try {
-            if (!window.authManager || !window.authManager.isAuthenticated()) {
-                throw new Error('Authentication required');
+            // Validate authentication
+            if (!this.validateAuthentication()) {
+                throw new Error('Authentication required. Please login first.');
             }
             
             const scheduleDate = new Date(scheduleTime);
@@ -309,11 +395,14 @@ class TelegramManager {
             
             console.log(`Scheduling message for ${scheduleDate.toLocaleString()}`);
             
+            // Get auth headers
+            const headers = this.getAuthHeaders();
+            
             const response = await fetch(`${this.apiBase}/telegram-api`, {
                 method: 'POST',
-                headers: window.authManager.getAuthHeaders(),
+                headers: headers,
                 body: JSON.stringify({
-                    action: 'send',
+                    action: 'schedule',
                     sessionId: sessionId,
                     chatId: chatId,
                     message: message,
@@ -321,6 +410,11 @@ class TelegramManager {
                     ...options
                 })
             });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            }
             
             const data = await response.json();
             
@@ -337,6 +431,11 @@ class TelegramManager {
                 };
                 
                 this.addToMessageQueue(scheduledMessage);
+                
+                this.emitEvent('message-scheduled', { 
+                    jobId: data.jobId,
+                    scheduledFor: scheduleTime 
+                });
                 
                 return {
                     success: true,
@@ -363,8 +462,9 @@ class TelegramManager {
     // Get user dialogs
     async getUserDialogs(sessionId) {
         try {
-            if (!window.authManager || !window.authManager.isAuthenticated()) {
-                throw new Error('Authentication required');
+            // Validate authentication
+            if (!this.validateAuthentication()) {
+                throw new Error('Authentication required. Please login first.');
             }
             
             const session = this.userSessions.get(sessionId);
@@ -374,14 +474,22 @@ class TelegramManager {
             
             console.log(`Getting dialogs for session ${sessionId}`);
             
+            // Get auth headers
+            const headers = this.getAuthHeaders();
+            
             const response = await fetch(`${this.apiBase}/telegram-api`, {
                 method: 'POST',
-                headers: window.authManager.getAuthHeaders(),
+                headers: headers,
                 body: JSON.stringify({
                     action: 'dialogs',
                     sessionId: sessionId
                 })
             });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            }
             
             const data = await response.json();
             
@@ -391,6 +499,11 @@ class TelegramManager {
                 session.stats.dialogsLoaded = data.dialogs?.length || 0;
                 this.userSessions.set(sessionId, session);
                 this.saveSessionsToStorage();
+                
+                this.emitEvent('dialogs-loaded', { 
+                    sessionId: sessionId, 
+                    count: data.dialogs?.length || 0 
+                });
                 
                 return {
                     success: true,
@@ -416,8 +529,9 @@ class TelegramManager {
     // Get session status
     async getSessionStatus(sessionId) {
         try {
-            if (!window.authManager || !window.authManager.isAuthenticated()) {
-                throw new Error('Authentication required');
+            // Validate authentication
+            if (!this.validateAuthentication()) {
+                throw new Error('Authentication required. Please login first.');
             }
             
             const session = this.userSessions.get(sessionId);
@@ -425,14 +539,35 @@ class TelegramManager {
                 throw new Error('Session not found');
             }
             
+            // Get auth headers
+            const headers = this.getAuthHeaders();
+            
             const response = await fetch(`${this.apiBase}/telegram-api`, {
                 method: 'POST',
-                headers: window.authManager.getAuthHeaders(),
+                headers: headers,
                 body: JSON.stringify({
                     action: 'status',
                     sessionId: sessionId
                 })
             });
+            
+            if (!response.ok) {
+                // If unauthorized, mark session as disconnected
+                if (response.status === 401) {
+                    session.status = 'disconnected';
+                    this.userSessions.set(sessionId, session);
+                    this.saveSessionsToStorage();
+                    
+                    return {
+                        success: false,
+                        error: 'Authentication expired',
+                        status: 'disconnected'
+                    };
+                }
+                
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            }
             
             const data = await response.json();
             
@@ -471,8 +606,9 @@ class TelegramManager {
     // Disconnect session
     async disconnectSession(sessionId) {
         try {
-            if (!window.authManager || !window.authManager.isAuthenticated()) {
-                throw new Error('Authentication required');
+            // Validate authentication
+            if (!this.validateAuthentication()) {
+                throw new Error('Authentication required. Please login first.');
             }
             
             const session = this.userSessions.get(sessionId);
@@ -482,43 +618,53 @@ class TelegramManager {
             
             console.log(`Disconnecting session: ${sessionId}`);
             
+            // Get auth headers
+            const headers = this.getAuthHeaders();
+            
             const response = await fetch(`${this.apiBase}/telegram-api`, {
                 method: 'POST',
-                headers: window.authManager.getAuthHeaders(),
+                headers: headers,
                 body: JSON.stringify({
                     action: 'disconnect',
                     sessionId: sessionId
                 })
             });
             
-            const data = await response.json();
-            
-            if (response.ok && data.success) {
-                // Remove from local storage
-                this.userSessions.delete(sessionId);
-                this.saveSessionsToStorage();
-                
-                // Stop monitoring
-                this.stopSessionMonitoring(sessionId);
-                
-                console.log(`✅ Session disconnected: ${sessionId}`);
-                
-                return {
-                    success: true,
-                    message: 'Disconnected successfully'
-                };
-            } else {
-                console.error('Disconnect failed:', data.error);
-                return {
-                    success: false,
-                    error: data.error
-                };
+            // Even if API call fails, remove locally
+            if (response.ok) {
+                const data = await response.json();
+                if (!data.success) {
+                    console.warn('API disconnect failed, removing locally:', data.error);
+                }
             }
+            
+            // Remove from local storage
+            this.userSessions.delete(sessionId);
+            this.saveSessionsToStorage();
+            
+            // Stop monitoring
+            this.stopSessionMonitoring(sessionId);
+            
+            console.log(`✅ Session disconnected: ${sessionId}`);
+            
+            this.emitEvent('session-disconnected', { sessionId: sessionId });
+            
+            return {
+                success: true,
+                message: 'Disconnected successfully'
+            };
         } catch (error) {
             console.error('Disconnect error:', error);
+            
+            // Still try to remove locally
+            this.userSessions.delete(sessionId);
+            this.saveSessionsToStorage();
+            this.stopSessionMonitoring(sessionId);
+            
             return {
                 success: false,
-                error: error.message
+                error: error.message,
+                message: 'Disconnected locally'
             };
         }
     }
@@ -526,8 +672,9 @@ class TelegramManager {
     // Get user chats
     async getUserChats(sessionId) {
         try {
-            if (!window.authManager || !window.authManager.isAuthenticated()) {
-                throw new Error('Authentication required');
+            // Validate authentication
+            if (!this.validateAuthentication()) {
+                throw new Error('Authentication required. Please login first.');
             }
             
             const session = this.userSessions.get(sessionId);
@@ -537,14 +684,22 @@ class TelegramManager {
             
             console.log(`Getting chats for session ${sessionId}`);
             
+            // Get auth headers
+            const headers = this.getAuthHeaders();
+            
             const response = await fetch(`${this.apiBase}/telegram-api`, {
                 method: 'POST',
-                headers: window.authManager.getAuthHeaders(),
+                headers: headers,
                 body: JSON.stringify({
                     action: 'chats',
                     sessionId: sessionId
                 })
             });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            }
             
             const data = await response.json();
             
@@ -578,8 +733,9 @@ class TelegramManager {
     // Setup auto-text
     async setupAutoText(sessionId, targets, message, interval = 60, repeat = 1, startNow = false) {
         try {
-            if (!window.authManager || !window.authManager.isAuthenticated()) {
-                throw new Error('Authentication required');
+            // Validate authentication
+            if (!this.validateAuthentication()) {
+                throw new Error('Authentication required. Please login first.');
             }
             
             const session = this.userSessions.get(sessionId);
@@ -589,9 +745,12 @@ class TelegramManager {
             
             console.log(`Setting up auto-text for session ${sessionId}`);
             
+            // Get auth headers
+            const headers = this.getAuthHeaders();
+            
             const response = await fetch(`${this.apiBase}/telegram-api`, {
                 method: 'POST',
-                headers: window.authManager.getAuthHeaders(),
+                headers: headers,
                 body: JSON.stringify({
                     action: 'auto-text',
                     sessionId: sessionId,
@@ -603,9 +762,19 @@ class TelegramManager {
                 })
             });
             
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            }
+            
             const data = await response.json();
             
             if (response.ok && data.success) {
+                this.emitEvent('auto-text-configured', { 
+                    sessionId: sessionId, 
+                    jobId: data.jobId 
+                });
+                
                 return {
                     success: true,
                     jobId: data.jobId,
@@ -681,6 +850,12 @@ class TelegramManager {
             session.status = 'disconnected';
             this.userSessions.set(sessionId, session);
             this.saveSessionsToStorage();
+            
+            this.emitEvent('session-disconnected', { 
+                sessionId: sessionId, 
+                reason: 'max-reconnection-attempts' 
+            });
+            
             return;
         }
         
@@ -691,6 +866,8 @@ class TelegramManager {
                 console.log(`✅ Reconnection successful for session ${sessionId}`);
                 session.reconnectionAttempts = 0;
                 this.userSessions.set(sessionId, session);
+                
+                this.emitEvent('session-reconnected', { sessionId: sessionId });
             }
         } catch (error) {
             // Schedule next attempt
@@ -703,7 +880,9 @@ class TelegramManager {
     // Disconnect all sessions
     async disconnectAllSessions() {
         const results = [];
-        for (const sessionId of this.userSessions.keys()) {
+        const sessionIds = Array.from(this.userSessions.keys());
+        
+        for (const sessionId of sessionIds) {
             if (this.userSessions.get(sessionId).status === 'connected') {
                 try {
                     await this.disconnectSession(sessionId);
@@ -713,6 +892,8 @@ class TelegramManager {
                 }
             }
         }
+        
+        this.emitEvent('all-sessions-disconnected', { results });
         return results;
     }
     
@@ -755,7 +936,9 @@ class TelegramManager {
     }
     
     // Process message queue
-    processMessageQueue() {
+    async processMessageQueue() {
+        if (this.messageQueue.length === 0) return;
+        
         const now = new Date();
         const processed = [];
         
@@ -766,26 +949,34 @@ class TelegramManager {
                 const scheduledTime = new Date(message.scheduledFor);
                 
                 if (now >= scheduledTime) {
-                    // Time to send the message
-                    this.sendMessage(
-                        message.sessionId,
-                        message.chatId,
-                        message.message
-                    ).then(result => {
+                    try {
+                        // Time to send the message
+                        const result = await this.sendMessage(
+                            message.sessionId,
+                            message.chatId,
+                            message.message
+                        );
+                        
                         message.status = result.success ? 'sent' : 'failed';
                         message.sentAt = new Date().toISOString();
                         message.result = result;
-                    }).catch(error => {
+                        
+                        this.emitEvent('queue-message-processed', { 
+                            jobId: message.jobId, 
+                            success: result.success 
+                        });
+                    } catch (error) {
                         message.status = 'failed';
                         message.error = error.message;
-                    });
+                        console.error('Queue processing error:', error);
+                    }
                     
                     processed.push(i);
                 }
             }
         }
         
-        // Remove processed messages
+        // Remove processed messages (reverse order to maintain indices)
         for (let i = processed.length - 1; i >= 0; i--) {
             this.messageQueue.splice(processed[i], 1);
         }
@@ -809,6 +1000,8 @@ class TelegramManager {
         const updatedSession = { ...session, ...updates, updatedAt: new Date().toISOString() };
         this.userSessions.set(sessionId, updatedSession);
         this.saveSessionsToStorage();
+        
+        this.emitEvent('session-updated', { sessionId: sessionId, updates: updates });
         
         return true;
     }
@@ -937,6 +1130,8 @@ class TelegramManager {
         this.messageQueue = [];
         
         console.log('🧹 All Telegram sessions cleared');
+        this.emitEvent('all-sessions-cleared');
+        
         return { success: true, count: 0 };
     }
     
@@ -987,12 +1182,13 @@ class TelegramManager {
         const count = this.messageQueue.length;
         this.messageQueue = [];
         console.log(`🗑️ Cleared ${count} messages from queue`);
+        
+        this.emitEvent('queue-cleared', { count });
+        
         return { success: true, count };
     }
     
     // Event system
-    eventListeners = {};
-    
     on(event, callback) {
         if (!this.eventListeners[event]) {
             this.eventListeners[event] = [];
@@ -1071,6 +1267,45 @@ class TelegramManager {
                 downloadDialogs: true
             }
         };
+    }
+    
+    // Health check
+    async healthCheck() {
+        try {
+            const sessions = this.getAllSessions();
+            const results = [];
+            
+            for (const session of sessions) {
+                try {
+                    const status = await this.getSessionStatus(session.sessionId);
+                    results.push({
+                        sessionId: session.sessionId,
+                        status: status.success ? 'healthy' : 'unhealthy',
+                        details: status
+                    });
+                } catch (error) {
+                    results.push({
+                        sessionId: session.sessionId,
+                        status: 'error',
+                        error: error.message
+                    });
+                }
+            }
+            
+            return {
+                success: true,
+                total: sessions.length,
+                healthy: results.filter(r => r.status === 'healthy').length,
+                unhealthy: results.filter(r => r.status === 'unhealthy').length,
+                errors: results.filter(r => r.status === 'error').length,
+                details: results
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message
+            };
+        }
     }
 }
 
