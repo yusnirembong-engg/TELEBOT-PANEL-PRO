@@ -948,32 +948,45 @@
     <script src="/js/terminal-manager.js"></script>
     <script src="/js/userbot-manager.js"></script>
     <script src="/js/ui-components.js"></script>
+    <script src="/js/init-manager.js"></script>
     <script src="/js/app.js"></script>
     
-    <!-- Initialize Application -->
+    <!-- Combined Initialization Script -->
     <script>
-        // Initialize when DOM is loaded
+        // Global initialization
         document.addEventListener('DOMContentLoaded', function() {
-            // Hide loading screen
+            console.log('🚀 DOM Content Loaded - Initializing TeleBot Pro');
+            
+            // Hide initial loading
             setTimeout(() => {
                 const loading = document.getElementById('initialLoading');
                 if (loading) {
                     loading.style.opacity = '0';
                     setTimeout(() => {
                         loading.style.display = 'none';
+                        console.log('✅ Loading screen hidden');
                     }, 300);
                 }
-                
-                // Initialize IP detection
-                detectIP();
-                
-                // Initialize app if available
-                if (window.app) {
-                    window.app.init();
-                }
-            }, 1000);
+            }, 1500);
+            
+            // Auto-detect IP
+            detectIP();
+            
+            // Setup auto-login for development
+            setupAutoLogin();
+            
+            // Setup IP refresh button
+            const checkIPBtn = document.getElementById('checkIPBtn');
+            if (checkIPBtn) {
+                checkIPBtn.addEventListener('click', detectIP);
+            }
+            
+            // Initialize global app
+            if (window.app && typeof window.app.init === 'function') {
+                window.app.init();
+            }
         });
-        
+
         // IP Detection
         async function detectIP() {
             try {
@@ -1004,21 +1017,49 @@
             }
         }
         
-        // Auto-login for development
-        document.getElementById('autoLoginBtn')?.addEventListener('click', function() {
-            document.getElementById('username').value = 'admin';
-            document.getElementById('password').value = 'TeleBotPro@2024!';
-            
-            // Trigger login form submission
-            const loginForm = document.getElementById('loginForm');
-            if (loginForm) {
-                const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
-                loginForm.dispatchEvent(submitEvent);
+        // Auto-login for development (can be removed in production)
+        function setupAutoLogin() {
+            const autoLoginBtn = document.getElementById('autoLoginBtn');
+            if (autoLoginBtn) {
+                autoLoginBtn.addEventListener('click', function() {
+                    const usernameInput = document.getElementById('username');
+                    const passwordInput = document.getElementById('password');
+                    
+                    if (usernameInput) usernameInput.value = 'admin';
+                    if (passwordInput) passwordInput.value = 'TeleBotPro@2024!';
+                    
+                    // Show message
+                    showToast('Auto-fill complete. Click Login button.', 'info');
+                });
             }
-        });
-        
-        // IP refresh button
-        document.getElementById('checkIPBtn')?.addEventListener('click', detectIP);
+            
+            // Keep original auto-login functionality for direct form submission
+            const originalAutoLoginBtn = document.getElementById('autoLoginBtn');
+            if (originalAutoLoginBtn) {
+                originalAutoLoginBtn.addEventListener('click', function() {
+                    document.getElementById('username').value = 'admin';
+                    document.getElementById('password').value = 'TeleBotPro@2024!';
+                    
+                    // Trigger login form submission
+                    const loginForm = document.getElementById('loginForm');
+                    if (loginForm) {
+                        const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
+                        loginForm.dispatchEvent(submitEvent);
+                    }
+                });
+            }
+        }
+
+        // Global showToast function
+        function showToast(message, type = 'info') {
+            // Use UI components if available
+            if (window.uiComponents && typeof window.uiComponents.showToast === 'function') {
+                window.uiComponents.showToast(message, type);
+            } else {
+                // Fallback console log
+                console.log(`[${type.toUpperCase()}] ${message}`);
+            }
+        }
     </script>
 </body>
 </html>
