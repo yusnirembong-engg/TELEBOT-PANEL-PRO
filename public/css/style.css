@@ -437,6 +437,17 @@ body {
     box-shadow: 0 4px 12px rgba(6, 182, 212, 0.3);
 }
 
+/* Active button states */
+.btn:active {
+    transform: translateY(0) scale(0.98);
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
 .btn-icon {
     width: 2.5rem;
     height: 2.5rem;
@@ -478,9 +489,36 @@ body {
     transform: translateY(-1px);
 }
 
+/* Hover effects for interactive elements */
+.nav-link:hover, 
+.btn-icon:hover,
+.btn-action:hover {
+    transform: translateY(-2px);
+    transition: transform 0.2s ease;
+}
+
 .btn-group {
     display: flex;
     gap: 0.5rem;
+}
+
+/* Focus states for accessibility */
+.btn:focus,
+.btn-icon:focus,
+.form-input:focus,
+.form-select:focus {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+/* Loading animation */
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.btn-loading {
+    animation: pulse 1.5s infinite;
 }
 
 /* Alerts */
@@ -896,11 +934,6 @@ body {
     border-radius: 50%;
     background: var(--color-warning);
     animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
 }
 
 /* Content Wrapper */
