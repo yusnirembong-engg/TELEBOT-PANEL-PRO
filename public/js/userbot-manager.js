@@ -1654,11 +1654,17 @@ class UserBotManager {
         const totalMessages = sessions.reduce((sum, s) => sum + (s.stats?.messagesSent || 0), 0);
         const totalDialogs = sessions.reduce((sum, s) => sum + (s.stats?.dialogsLoaded || 0), 0);
         
-        document.getElementById('connectedSessionsCount')?.textContent = connectedCount;
-        document.getElementById('totalMessagesCount')?.textContent = totalMessages;
-        document.getElementById('totalDialogsCount')?.textContent = totalDialogs;
-        document.getElementById('activeSessionsCount')?.textContent = sessions.length;
-    }  // TAMBAHKAN KURUNG KURAWAL PENUTUP YANG HILANG
+        // Perbaikan: Hapus optional chaining untuk textContent
+        const connectedEl = document.getElementById('connectedSessionsCount');
+        const totalMessagesEl = document.getElementById('totalMessagesCount');
+        const totalDialogsEl = document.getElementById('totalDialogsCount');
+        const activeSessionsEl = document.getElementById('activeSessionsCount');
+        
+        if (connectedEl) connectedEl.textContent = connectedCount;
+        if (totalMessagesEl) totalMessagesEl.textContent = totalMessages;
+        if (totalDialogsEl) totalDialogsEl.textContent = totalDialogs;
+        if (activeSessionsEl) activeSessionsEl.textContent = sessions.length;
+    }
     
     // Filter sessions
     filterSessions(searchTerm = '', filter = 'all') {
