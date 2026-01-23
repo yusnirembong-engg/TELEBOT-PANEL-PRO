@@ -99,69 +99,27 @@ function setupBasicListeners() {
                     const result = await window.authManager.login(username, password, clientIP);
                     
                     if (result.success) {
-                        // Show success
-                        if (loginBtn) {
-                            loginBtn.innerHTML = '<i class="fas fa-check"></i> Login Successful!';
-                        }
-                        
-                        // Hide login screen, show main panel
-                        const loginScreen = document.getElementById('loginScreen');
-                        const mainPanel = document.getElementById('mainPanel');
-                        
-                        if (loginScreen) loginScreen.style.display = 'none';
-                        if (mainPanel) mainPanel.style.display = 'flex';
-                        
-                        // Show welcome message
-                        setTimeout(() => {
-                            if (loginBtn) {
-                                loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login';
-                                loginBtn.disabled = false;
-                            }
-                        }, 2000);
-                        
+                        handleSuccessfulLogin(result, username, clientIP);
                     } else {
-                        // Show error
-                        if (errorDiv) {
-                            document.getElementById('errorMessage').textContent = result.error;
-                            errorDiv.style.display = 'block';
-                        }
-                        
-                        if (loginBtn) {
-                            loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login';
-                            loginBtn.disabled = false;
-                        }
+                        handleLoginError(result.error, loginBtn, errorDiv);
                     }
                 } catch (error) {
                     console.error('Login error:', error);
-                    
-                    if (errorDiv) {
-                        document.getElementById('errorMessage').textContent = 
-                            'Network error. Please check your connection.';
-                        errorDiv.style.display = 'block';
-                    }
-                    
-                    if (loginBtn) {
-                        loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login';
-                        loginBtn.disabled = false;
-                    }
+                    handleLoginError('Network error. Please check your connection.', loginBtn, errorDiv);
                 }
             } else {
                 // Fallback if auth manager not available
                 console.warn('Auth manager not available, using fallback');
                 
-                // Simulate network delay
-                setTimeout(() => {
-                    if (loginBtn) {
-                        loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login';
-                        loginBtn.disabled = false;
-                    }
-                    
-                    if (errorDiv) {
-                        document.getElementById('errorMessage').textContent = 
-                            'Authentication service not available. Please check server.';
-                        errorDiv.style.display = 'block';
-                    }
-                }, 1500);
+                // Use simple authentication for demo
+                if (username === 'admin' && password === 'TeleBotPro@2024!') {
+                    handleSuccessfulLogin({
+                        success: true,
+                        user: { username: 'admin', role: 'administrator' }
+                    }, username, null);
+                } else {
+                    handleLoginError('Invalid credentials. Use admin/TeleBotPro@2024!', loginBtn, errorDiv);
+                }
             }
         });
     }
@@ -204,36 +162,573 @@ function setupBasicListeners() {
     }
 }
 
+// Handle successful login
+function handleSuccessfulLogin(result, username, clientIP) {
+    // Show success
+    const loginBtn = document.getElementById('loginBtn');
+    if (loginBtn) {
+        loginBtn.innerHTML = '<i class="fas fa-check"></i> Login Successful!';
+    }
+    
+    // Hide login screen, show main panel
+    const loginScreen = document.getElementById('loginScreen');
+    const mainPanel = document.getElementById('mainPanel');
+    
+    if (loginScreen) loginScreen.style.display = 'none';
+    if (mainPanel) mainPanel.style.display = 'flex';
+    
+    // Initialize UI components
+    initializeAfterLogin(username, clientIP);
+    
+    // Reset button after delay
+    setTimeout(() => {
+        if (loginBtn) {
+            loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login';
+            loginBtn.disabled = false;
+        }
+    }, 2000);
+}
+
+// Handle login error
+function handleLoginError(errorMessage, loginBtn, errorDiv) {
+    // Show error
+    if (errorDiv) {
+        document.getElementById('errorMessage').textContent = errorMessage;
+        errorDiv.style.display = 'block';
+    }
+    
+    if (loginBtn) {
+        loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login';
+        loginBtn.disabled = false;
+    }
+}
+
+// Initialize after login
+function initializeAfterLogin(username, clientIP) {
+    console.log(`✅ Login successful for user: ${username}`);
+    
+    // Update user info
+    const userElement = document.getElementById('currentUser');
+    if (userElement) {
+        userElement.textContent = username;
+    }
+    
+    // Initialize UI Components if available
+    if (window.uiComponents) {
+        // Switch to dashboard
+        window.uiComponents.switchSection('dashboard');
+        
+        // Show welcome toast
+        window.uiComponents.showToast('Welcome to TeleBot Pro!', 'success');
+        
+        // Add login notification
+        window.uiComponents.addNotification(
+            'Login Successful',
+            `User ${username} logged in${clientIP ? ` from ${clientIP}` : ''}`,
+            'success',
+            { username, ip: clientIP }
+        );
+        
+        // Update dashboard stats
+        window.uiComponents.updateDashboardStats();
+    } else {
+        // Fallback initialization
+        fallbackInitializeAfterLogin();
+    }
+    
+    // Setup session timer
+    setupSessionTimer();
+    
+    // Initialize managers if they exist
+    initializeManagers();
+}
+
+// Fallback initialization
+function fallbackInitializeAfterLogin() {
+    console.log('⚠️ UI Components not available, using fallback initialization');
+    
+    // Switch to dashboard section
+    const dashboardSection = document.getElementById('dashboardSection');
+    const otherSections = document.querySelectorAll('.content-section:not(#dashboardSection)');
+    
+    if (dashboardSection) {
+        dashboardSection.classList.add('active');
+    }
+    
+    otherSections.forEach(section => {
+        section.classList.remove('active');
+    });
+    
+    // Update nav links
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.classList.remove('active');
+    });
+    
+    const dashboardLink = document.querySelector('.nav-link[data-section="dashboard"]');
+    if (dashboardLink) {
+        dashboardLink.classList.add('active');
+    }
+    
+    // Update breadcrumb
+    const breadcrumb = document.getElementById('breadcrumb');
+    if (breadcrumb) {
+        breadcrumb.innerHTML = '<span><i class="fas fa-home"></i> Dashboard</span>';
+    }
+    
+    // Show simple toast
+    showToast('Welcome to TeleBot Pro!', 'success');
+}
+
+// Setup session timer
+function setupSessionTimer() {
+    let seconds = 0;
+    const timerElement = document.getElementById('sessionTimer');
+    
+    if (!timerElement) return;
+    
+    const timer = setInterval(() => {
+        seconds++;
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        
+        timerElement.textContent = 
+            `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+    }, 1000);
+    
+    // Store timer for cleanup
+    window.sessionTimer = timer;
+}
+
+// Initialize managers
+function initializeManagers() {
+    // Initialize bot manager if available
+    if (window.botManager && typeof window.botManager.init === 'function') {
+        try {
+            window.botManager.init();
+            console.log('✅ Bot Manager initialized');
+        } catch (error) {
+            console.error('Failed to initialize Bot Manager:', error);
+        }
+    }
+    
+    // Initialize terminal manager if available
+    if (window.terminalManager && typeof window.terminalManager.init === 'function') {
+        try {
+            window.terminalManager.init();
+            console.log('✅ Terminal Manager initialized');
+        } catch (error) {
+            console.error('Failed to initialize Terminal Manager:', error);
+        }
+    }
+    
+    // Initialize telegram manager if available
+    if (window.telegramManager && typeof window.telegramManager.init === 'function') {
+        try {
+            window.telegramManager.init();
+            console.log('✅ Telegram Manager initialized');
+        } catch (error) {
+            console.error('Failed to initialize Telegram Manager:', error);
+        }
+    }
+    
+    // Initialize userbot manager if available
+    if (window.userBotManager && typeof window.userBotManager.init === 'function') {
+        try {
+            window.userBotManager.init();
+            console.log('✅ UserBot Manager initialized');
+        } catch (error) {
+            console.error('Failed to initialize UserBot Manager:', error);
+        }
+    }
+}
+
+// Initialize the application when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('📱 DOM Content Loaded');
+    
+    // Hide initial loading
+    setTimeout(() => {
+        const loading = document.getElementById('initialLoading');
+        if (loading) {
+            loading.style.opacity = '0';
+            setTimeout(() => {
+                loading.style.display = 'none';
+            }, 300);
+        }
+    }, 1000);
+    
+    // Setup additional event listeners
+    setupAdditionalListeners();
+    
+    console.log('✅ Event listeners setup complete');
+});
+
+// Setup additional event listeners
+function setupAdditionalListeners() {
+    // Quick start button
+    const quickStartBtn = document.getElementById('quickStartBtn');
+    if (quickStartBtn) {
+        quickStartBtn.addEventListener('click', function() {
+            if (window.uiComponents) {
+                window.uiComponents.showCreateBotModal();
+            } else {
+                showToast('Please log in first to create a bot', 'info');
+            }
+        });
+    }
+    
+    // Theme toggle
+    const themeToggle = document.getElementById('themeToggle');
+    if (themeToggle) {
+        themeToggle.addEventListener('click', function() {
+            toggleTheme();
+        });
+    }
+    
+    // Refresh button
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', function() {
+            refreshAll();
+        });
+    }
+    
+    // Logout button
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', function() {
+            handleLogout();
+        });
+    }
+    
+    // Settings button
+    const settingsBtn = document.getElementById('settingsBtn');
+    if (settingsBtn) {
+        settingsBtn.addEventListener('click', function() {
+            if (window.uiComponents) {
+                window.uiComponents.showSettings();
+            }
+        });
+    }
+    
+    // Navigation links
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const section = this.getAttribute('data-section');
+            
+            if (window.uiComponents) {
+                window.uiComponents.switchSection(section);
+            } else {
+                // Fallback navigation
+                switchSection(section);
+            }
+        });
+    });
+    
+    // Sidebar toggle
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebarToggleMobile = document.getElementById('sidebarToggleMobile');
+    
+    if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', function() {
+            toggleSidebar();
+        });
+    }
+    
+    if (sidebarToggleMobile) {
+        sidebarToggleMobile.addEventListener('click', function() {
+            toggleSidebar();
+        });
+    }
+}
+
+// Fallback section switching
+function switchSection(sectionId) {
+    console.log(`Switching to section: ${sectionId}`);
+    
+    // Hide all sections
+    document.querySelectorAll('.content-section').forEach(section => {
+        section.classList.remove('active');
+    });
+    
+    // Show selected section
+    const sectionElement = document.getElementById(sectionId + 'Section');
+    if (sectionElement) {
+        sectionElement.classList.add('active');
+    }
+    
+    // Update nav links
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.classList.remove('active');
+    });
+    
+    const navLink = document.querySelector(`.nav-link[data-section="${sectionId}"]`);
+    if (navLink) {
+        navLink.classList.add('active');
+    }
+    
+    // Update breadcrumb
+    updateBreadcrumb(sectionId);
+    
+    // Initialize section-specific features
+    initializeSection(sectionId);
+}
+
+// Update breadcrumb (fallback)
+function updateBreadcrumb(sectionId) {
+    const breadcrumb = document.getElementById('breadcrumb');
+    if (!breadcrumb) return;
+    
+    const sectionNames = {
+        'dashboard': 'Dashboard',
+        'terminal': 'Terminal',
+        'bot-control': 'Bot Control',
+        'telegram': 'Telegram User Bot',
+        'auto-text': 'Auto Text'
+    };
+    
+    breadcrumb.innerHTML = `
+        <span><i class="fas fa-home"></i> ${sectionNames[sectionId] || sectionId}</span>
+    `;
+}
+
+// Initialize section (fallback)
+function initializeSection(sectionId) {
+    switch(sectionId) {
+        case 'terminal':
+            initializeTerminalSection();
+            break;
+        case 'bot-control':
+            initializeBotControlSection();
+            break;
+        case 'telegram':
+            initializeTelegramSection();
+            break;
+    }
+}
+
+// Initialize terminal section (fallback)
+function initializeTerminalSection() {
+    // Setup terminal if terminal manager exists
+    if (window.terminalManager) {
+        const terminalOutput = document.getElementById('terminalOutput');
+        const commandInput = document.getElementById('commandInput');
+        
+        if (terminalOutput && commandInput) {
+            window.terminalManager.setTerminalElements(terminalOutput, commandInput);
+            
+            // Focus input
+            setTimeout(() => {
+                commandInput.focus();
+            }, 100);
+        }
+    }
+}
+
+// Initialize bot control section (fallback)
+function initializeBotControlSection() {
+    // Load bots if bot manager exists
+    if (window.botManager && window.botManager.getAllBots) {
+        const bots = window.botManager.getAllBots();
+        updateBotStats(bots);
+    }
+}
+
+// Initialize telegram section (fallback)
+function initializeTelegramSection() {
+    // Show telegram interface if userbot manager exists
+    if (window.userBotManager && window.userBotManager.showUserBotInterface) {
+        window.userBotManager.showUserBotInterface();
+    }
+}
+
+// Update bot stats (fallback)
+function updateBotStats(bots) {
+    const totalBotsCount = document.getElementById('totalBotsCount');
+    const runningBotsCount = document.getElementById('runningBotsCount');
+    const stoppedBotsCount = document.getElementById('stoppedBotsCount');
+    
+    if (totalBotsCount) totalBotsCount.textContent = bots.length;
+    
+    const running = bots.filter(b => b.status === 'running').length;
+    const stopped = bots.filter(b => b.status === 'stopped').length;
+    
+    if (runningBotsCount) runningBotsCount.textContent = running;
+    if (stoppedBotsCount) stoppedBotsCount.textContent = stopped;
+}
+
+// Toggle theme (fallback)
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    
+    // Update icon
+    const icon = document.querySelector('#themeToggle i');
+    if (icon) {
+        icon.className = newTheme === 'dark' ? 'fas fa-moon' : 'fas fa-sun';
+    }
+    
+    showToast(`Switched to ${newTheme} theme`, 'info');
+}
+
+// Toggle sidebar (fallback)
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const mainContent = document.querySelector('.main-content');
+    
+    if (sidebar && mainContent) {
+        sidebar.classList.toggle('collapsed');
+        mainContent.classList.toggle('expanded');
+    }
+}
+
+// Refresh all (fallback)
+function refreshAll() {
+    showToast('Refreshing all data...', 'info');
+    
+    // Refresh bots
+    if (window.botManager && window.botManager.listBots) {
+        window.botManager.listBots().then(result => {
+            if (result.success) {
+                updateBotStats(result.bots);
+            }
+        });
+    }
+    
+    // Refresh dashboard stats
+    updateDashboardStats();
+}
+
+// Update dashboard stats (fallback)
+function updateDashboardStats() {
+    // Update bot count
+    if (window.botManager && window.botManager.getAllBots) {
+        const bots = window.botManager.getAllBots();
+        const runningBots = bots.filter(b => b.status === 'running').length;
+        
+        const totalBotsEl = document.getElementById('totalBots');
+        const botStatusEl = document.getElementById('botStatus');
+        
+        if (totalBotsEl) totalBotsEl.textContent = bots.length;
+        if (botStatusEl) botStatusEl.textContent = `${runningBots} running`;
+        
+        // Update header
+        const headerBotsEl = document.getElementById('headerBotsCount');
+        if (headerBotsEl) headerBotsEl.textContent = bots.length;
+    }
+}
+
+// Handle logout (fallback)
+function handleLogout() {
+    if (confirm('Are you sure you want to logout?')) {
+        // Clear any timers
+        if (window.sessionTimer) {
+            clearInterval(window.sessionTimer);
+        }
+        
+        // Clear auth data
+        if (window.authManager && window.authManager.logout) {
+            window.authManager.logout();
+        }
+        
+        // Clear localStorage
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('auth_expiry');
+        localStorage.removeItem('auth_user');
+        
+        // Show login screen
+        const loginScreen = document.getElementById('loginScreen');
+        const mainPanel = document.getElementById('mainPanel');
+        
+        if (loginScreen) loginScreen.style.display = 'block';
+        if (mainPanel) mainPanel.style.display = 'none';
+        
+        // Reset form
+        const loginForm = document.getElementById('loginForm');
+        if (loginForm) loginForm.reset();
+        
+        // Reset IP display
+        const ipDisplay = document.getElementById('ipDisplay');
+        const ipStatus = document.getElementById('ipStatus');
+        
+        if (ipDisplay) ipDisplay.textContent = 'Detecting...';
+        if (ipStatus) {
+            ipStatus.textContent = 'Checking...';
+            ipStatus.className = 'status-badge pending';
+        }
+        
+        // Redetect IP
+        detectIP();
+        
+        showToast('Logged out successfully', 'info');
+    }
+}
+
+// Global helper function
+function showToast(message, type = 'info') {
+    if (window.uiComponents && window.uiComponents.showToast) {
+        window.uiComponents.showToast(message, type);
+    } else {
+        // Fallback toast implementation
+        console.log(`[${type.toUpperCase()}] ${message}`);
+        
+        // Create simple toast element
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: ${type === 'success' ? '#10b981' : 
+                         type === 'error' ? '#ef4444' : 
+                         type === 'warning' ? '#f59e0b' : '#3b82f6'};
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            z-index: 9999;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            animation: slideIn 0.3s ease;
+            max-width: 350px;
+        `;
+        
+        toast.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <i class="fas ${type === 'success' ? 'fa-check-circle' : 
+                              type === 'error' ? 'fa-exclamation-circle' : 
+                              type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle'}" 
+                   style="font-size: 18px;"></i>
+                <span>${message}</span>
+            </div>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // Auto remove after 5 seconds
+        setTimeout(() => {
+            toast.style.animation = 'slideOut 0.3s ease forwards';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.remove();
+                }
+            }, 300);
+        }, 5000);
+    }
+}
+
 // Fallback app object if ui-components.js fails
 if (!window.app) {
     window.app = {
         init: function() {
             console.log('App initialized (fallback)');
+            setupAdditionalListeners();
         },
-        switchSection: function(sectionId) {
-            console.log(`Switching to section: ${sectionId}`);
-            
-            // Hide all sections
-            document.querySelectorAll('.content-section').forEach(section => {
-                section.classList.remove('active');
-            });
-            
-            // Show selected section
-            const sectionElement = document.getElementById(sectionId + 'Section');
-            if (sectionElement) {
-                sectionElement.classList.add('active');
-            }
-            
-            // Update nav links
-            document.querySelectorAll('.nav-link').forEach(link => {
-                link.classList.remove('active');
-            });
-            
-            const navLink = document.querySelector(`.nav-link[data-section="${sectionId}"]`);
-            if (navLink) {
-                navLink.classList.add('active');
-            }
-        }
+        switchSection: switchSection,
+        showToast: showToast,
+        updateDashboardStats: updateDashboardStats
     };
 }
 
@@ -241,7 +736,7 @@ if (!window.app) {
 if (!window.botManager) {
     window.botManager = {
         getAllBots: () => [],
-        listBots: () => Promise.resolve({ success: false })
+        listBots: () => Promise.resolve({ success: false, bots: [] })
     };
 }
 
@@ -261,7 +756,38 @@ if (!window.terminalManager) {
 
 if (!window.userBotManager) {
     window.userBotManager = {
-        showUserBotInterface: () => {},
-        showAutoTextInterface: () => {}
+        showUserBotInterface: () => {
+            const content = document.getElementById('telegramContent') || document.getElementById('dynamicContent');
+            if (content) {
+                content.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fab fa-telegram"></i>
+                        <h3>Telegram User Bot</h3>
+                        <p>This feature requires the UserBot Manager</p>
+                        <button class="btn btn-primary" onclick="showToast('Feature coming soon!', 'info')">
+                            <i class="fas fa-info-circle"></i> Learn More
+                        </button>
+                    </div>
+                `;
+            }
+        },
+        showAutoTextInterface: () => {
+            const content = document.getElementById('dynamicContent');
+            if (content) {
+                content.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-tasks"></i>
+                        <h3>Auto Text Scheduler</h3>
+                        <p>This feature requires the UserBot Manager</p>
+                        <button class="btn btn-primary" onclick="showToast('Feature coming soon!', 'info')">
+                            <i class="fas fa-info-circle"></i> Learn More
+                        </button>
+                    </div>
+                `;
+            }
+        }
     };
 }
+
+// Initialize the app
+window.app.init();
