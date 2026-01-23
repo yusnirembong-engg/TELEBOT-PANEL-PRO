@@ -5,18 +5,13 @@
   "main": "index.js",
   "scripts": {
     "dev": "serve public -p 8888 -s",
-    "build": "echo 'Building TeleBot Panel Pro...' && cp -r netlify/functions/package.json netlify/functions/node_modules/ ../ || true",
+    "build": "echo 'Building TeleBot Panel Pro...'",
     "start": "npm run dev",
     "deploy": "bash deploy.sh",
-    "setup": "bash deploy.sh --setup",
+    "setup": "bash deploy.sh --setup-only",
     "test": "echo 'Running tests...' && node -e \"console.log('✓ All systems ready')\"",
-    "generate:hash": "node -e \"const bcrypt = require('bcryptjs'); const hash = bcrypt.hashSync(process.argv[2] || 'TeleBotPro@2024!', 10); console.log('Password hash:', hash)\"",
-    "generate:secret": "node -e \"console.log(require('crypto').randomBytes(64).toString('hex'))\"",
-    "generate:env": "cp .env.example .env && echo '.env file created. Please edit with your values.'",
-    "lint": "echo 'Linting...'",
     "clean": "rm -rf node_modules netlify/functions/node_modules",
-    "postinstall": "cd netlify/functions && npm install",
-    "predeploy": "npm run build"
+    "postinstall": "cd netlify/functions && npm install 2>/dev/null || echo 'Function dependencies optional'"
   },
   "keywords": [
     "telegram",
@@ -34,14 +29,9 @@
   "author": "TeleBot Pro Team",
   "license": "MIT",
   "dependencies": {
-    "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.0",
-    "axios": "^1.6.0",
-    "crypto-js": "^4.2.0",
-    "uuid": "^9.0.1"
+    "serve": "^14.2.1"
   },
   "devDependencies": {
-    "serve": "^14.2.1",
     "netlify-cli": "^17.0.0"
   },
   "engines": {
