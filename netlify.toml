@@ -1,3 +1,25 @@
+{
+  "name": "telebot-functions",
+  "version": "1.0.0",
+  "description": "Netlify Functions untuk TeleBot Pro",
+  "main": "index.js",
+  "dependencies": {
+    "jsonwebtoken": "^9.0.0",
+    "bcryptjs": "^2.4.3"
+  },
+  "devDependencies": {
+    "@netlify/functions": "^2.0.0",
+    "esbuild": "^0.19.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "echo 'Tidak diperlukan langkah build khusus'",
+    "dev": "netlify dev"
+  }
+}
+
 [build]
   publish = "public"
   functions = "netlify/functions"
@@ -6,9 +28,16 @@
 [build.environment]
   NODE_VERSION = "18"
   NPM_VERSION = "9"
+  NETLIFY_USE_YARN = "true"
 
 [functions]
   node_bundler = "esbuild"
+  directory = "netlify/functions"
+  
+  # Untuk mengatur timeout jika fungsi membutuhkan waktu lebih lama
+  # "*":
+  #   timeout = 10
+  #   memory = 1024
 
 [[headers]]
   for = "/*"
@@ -33,6 +62,13 @@
   publish = "public"
   functions = "netlify/functions"
   port = 8888
+  targetPort = 8888
+  framework = "#static"
+  
+  # Untuk live reload
+  [dev.live]
+    port = 8888
+    allowedHosts = ["all"]
 
 [[redirects]]
   from = "/*"
@@ -43,3 +79,17 @@
   from = "/.netlify/functions/*"
   to = "/.netlify/functions/:splat"
   status = 200
+
+# Redirect untuk Single Page Application (SPA)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  force = false
+  conditions = {Language = ["en"], Country = ["US"]}
+
+# Fallback untuk 404
+[[redirects]]
+  from = "/*"
+  to = "/404.html"
+  status = 404
