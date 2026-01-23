@@ -1659,7 +1659,10 @@ class UserBotManager {
         document.getElementById('totalMessagesCount')?.textContent = totalMessages;
         document.getElementById('totalDialogsCount')?.textContent = totalDialogs;
         document.getElementById('activeSessionsCount')?.textContent = sessions.length;
-    }
+     
+        if (typeof module !== 'undefined' && module.exports) {
+        module.exports = UserBotManager;
+    } 
     
     // Filter sessions
     filterSessions(searchTerm = '', filter = 'all') {
