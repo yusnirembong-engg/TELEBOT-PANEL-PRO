@@ -429,18 +429,93 @@ class UIComponents {
         }
     }
     
+    // PERBAIKAN: initializeTelegram dengan penanganan error yang lebih baik
     initializeTelegram() {
-        // Initialize telegram section
-        if (window.userBotManager) {
-            window.userBotManager.showUserBotInterface();
+        console.log('📱 Initializing Telegram User Bot section...');
+        
+        // Tunggu sebentar untuk memastikan manager siap
+        setTimeout(() => {
+            if (window.userBotManager) {
+                console.log('✅ UserBot Manager found, showing interface...');
+                try {
+                    window.userBotManager.showUserBotInterface();
+                    this.showToast('Telegram User Bot interface loaded', 'success');
+                } catch (error) {
+                    console.error('Error showing user bot interface:', error);
+                    this.showFallbackUI('Telegram User Bot', 'Failed to load Telegram User Bot interface: ' + error.message);
+                }
+            } else {
+                console.error('❌ UserBot Manager not available');
+                this.showFallbackUI('Telegram User Bot', 'UserBot Manager is not loaded. Please check if the manager is properly initialized.');
+            }
+        }, 500);
+    }
+    
+    // Helper method untuk menampilkan UI fallback
+    showFallbackUI(sectionName, errorMessage) {
+        const content = document.getElementById('telegramContent') || document.getElementById('dynamicContent');
+        if (content) {
+            content.innerHTML = `
+                <div class="error-state" style="text-align: center; padding: 40px 20px;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 64px; color: #f59e0b; margin-bottom: 20px;"></i>
+                    <h3 style="margin-bottom: 10px; color: #ef4444;">${sectionName} Error</h3>
+                    <p style="margin-bottom: 20px; color: #6b7280;">${errorMessage}</p>
+                    <div style="display: flex; gap: 10px; justify-content: center;">
+                        <button class="btn btn-primary" onclick="location.reload()" style="display: inline-flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-sync-alt"></i> Refresh Page
+                        </button>
+                        <button class="btn btn-secondary" onclick="window.uiComponents.switchSection('dashboard')" style="display: inline-flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-arrow-left"></i> Back to Dashboard
+                        </button>
+                    </div>
+                    <div style="margin-top: 30px; padding: 20px; background: #1f2937; border-radius: 8px; text-align: left;">
+                        <h4 style="margin-bottom: 10px; color: #d1d5db;">Debug Information:</h4>
+                        <pre style="color: #9ca3af; font-size: 12px; overflow-x: auto;">
+UserBot Manager: ${window.userBotManager ? 'Available' : 'Not Available'}
+Bot Manager: ${window.botManager ? 'Available' : 'Not Available'}
+Auth Manager: ${window.authManager ? 'Available' : 'Not Available'}
+Console Error: ${errorMessage}
+                        </pre>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Fallback jika element tidak ditemukan
+            document.body.innerHTML += `
+                <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #1f2937; padding: 30px; border-radius: 12px; text-align: center; z-index: 10000; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 64px; color: #f59e0b; margin-bottom: 20px;"></i>
+                    <h3 style="margin-bottom: 10px; color: white;">${sectionName} Error</h3>
+                    <p style="margin-bottom: 20px; color: #9ca3af;">${errorMessage}</p>
+                    <button onclick="location.reload()" style="background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold;">
+                        <i class="fas fa-sync-alt"></i> Refresh Page
+                    </button>
+                </div>
+            `;
         }
+        
+        // Log error untuk debugging
+        console.error(`Error in ${sectionName}:`, errorMessage);
+        this.showToast(`Failed to load ${sectionName}: ${errorMessage}`, 'error');
     }
     
     initializeAutoText() {
-        // Initialize auto-text section
-        if (window.userBotManager) {
-            window.userBotManager.showAutoTextInterface();
-        }
+        console.log('📝 Initializing Auto Text section...');
+        
+        // Initialize auto-text section dengan penanganan error
+        setTimeout(() => {
+            if (window.userBotManager) {
+                try {
+                    window.userBotManager.showAutoTextInterface();
+                    this.showToast('Auto Text interface loaded', 'success');
+                } catch (error) {
+                    console.error('Error showing auto text interface:', error);
+                    this.showFallbackUI('Auto Text', 'Failed to load Auto Text interface: ' + error.message);
+                }
+            } else {
+                console.error('Auto Text Manager not available');
+                this.showFallbackUI('Auto Text', 'Auto Text Manager is not loaded. Please check if the manager is properly initialized.');
+            }
+        }, 500);
     }
     
     async loadBots() {
@@ -1006,31 +1081,11 @@ class UIComponents {
         // Load content based on section
         switch(sectionId) {
             case 'telegram':
-                if (window.userBotManager) {
-                    window.userBotManager.showUserBotInterface();
-                } else {
-                    dynamicContent.innerHTML = `
-                        <div class="error-state">
-                            <i class="fas fa-exclamation-triangle"></i>
-                            <h3>User Bot Manager Not Available</h3>
-                            <p>The User Bot Manager is not loaded. Please check the console for errors.</p>
-                        </div>
-                    `;
-                }
+                this.initializeTelegram();
                 break;
                 
             case 'auto-text':
-                if (window.userBotManager) {
-                    window.userBotManager.showAutoTextInterface();
-                } else {
-                    dynamicContent.innerHTML = `
-                        <div class="error-state">
-                            <i class="fas fa-exclamation-triangle"></i>
-                            <h3>Auto Text Manager Not Available</h3>
-                            <p>The Auto Text Manager is not loaded. Please check the console for errors.</p>
-                        </div>
-                    `;
-                }
+                this.initializeAutoText();
                 break;
                 
             default:
