@@ -16,10 +16,134 @@ class UIComponents {
     }
     
     init() {
-        console.log('🎨 UI Components initialized');
+        console.log('🎨 UI Components initializing...');
         this.loadTheme();
-        this.setupEventListeners();
-        this.createContainers();
+        
+        // Wait for DOM to be ready
+        setTimeout(() => {
+            this.createContainers();
+            this.setupEventListeners();
+            this.initializeDashboard();
+            
+            // Check if we're already logged in
+            if (window.authManager && window.authManager.isAuthenticated()) {
+                console.log('✅ User already logged in, initializing UI');
+                this.initializeAfterLogin();
+            }
+            
+            console.log('✅ UI Components initialized');
+        }, 100);
+    }
+    
+    // TAMBAHKAN fungsi ini
+    initializeAfterLogin() {
+        // Update user info
+        const user = window.authManager?.getUser();
+        const userElement = document.getElementById('currentUser');
+        if (userElement && user) {
+            userElement.textContent = user.username || 'Admin';
+        }
+        
+        // Switch to dashboard
+        this.switchSection('dashboard');
+        
+        // Update stats
+        this.updateDashboardStats();
+        
+        // Show welcome
+        this.showToast('Welcome back!', 'success');
+    }
+    
+    initializeDashboard() {
+        console.log('📊 Initializing dashboard...');
+        
+        // Setup dashboard event listeners
+        this.setupDashboardEventListeners();
+        
+        // Load initial data
+        this.loadDashboardData();
+    }
+    
+    setupDashboardEventListeners() {
+        // Dashboard buttons
+        const quickStartBtn = document.getElementById('quickStartBtn');
+        if (quickStartBtn) {
+            quickStartBtn.addEventListener('click', () => {
+                this.showCreateBotModal();
+            });
+        }
+        
+        const refreshDashboard = document.getElementById('refreshDashboard');
+        if (refreshDashboard) {
+            refreshDashboard.addEventListener('click', () => {
+                this.updateDashboardStats();
+                this.showToast('Dashboard refreshed', 'info');
+            });
+        }
+        
+        // Clear activity
+        const clearActivity = document.getElementById('clearActivity');
+        if (clearActivity) {
+            clearActivity.addEventListener('click', () => {
+                this.clearActivityLog();
+            });
+        }
+    }
+    
+    async loadDashboardData() {
+        try {
+            // Load bots count
+            if (window.botManager) {
+                const bots = window.botManager.getAllBots();
+                this.updateDashboardStats();
+            }
+            
+            // Load system info
+            this.updateSystemInfo();
+            
+        } catch (error) {
+            console.error('Failed to load dashboard data:', error);
+        }
+    }
+    
+    updateSystemInfo() {
+        // Update CPU usage (simulated)
+        const cpuElement = document.getElementById('cpuUsage');
+        if (cpuElement) {
+            const cpuUsage = Math.floor(Math.random() * 30) + 10;
+            cpuElement.textContent = `${cpuUsage}%`;
+        }
+        
+        // Update memory usage (simulated)
+        const memoryElement = document.getElementById('memoryUsage');
+        if (memoryElement) {
+            const memoryUsage = Math.floor(Math.random() * 50) + 30;
+            memoryElement.textContent = `${memoryUsage}%`;
+        }
+        
+        // Update uptime
+        const uptimeElement = document.getElementById('uptimeDays');
+        if (uptimeElement) {
+            uptimeElement.textContent = '1';
+        }
+    }
+    
+    clearActivityLog() {
+        const activityList = document.getElementById('activityList');
+        if (activityList) {
+            activityList.innerHTML = `
+                <div class="activity-item">
+                    <div class="activity-icon">
+                        <i class="fas fa-info-circle"></i>
+                    </div>
+                    <div class="activity-content">
+                        <div class="activity-title">Activity log cleared</div>
+                        <div class="activity-time">Just now</div>
+                    </div>
+                </div>
+            `;
+            this.showToast('Activity log cleared', 'info');
+        }
     }
     
     loadTheme() {
@@ -542,7 +666,7 @@ class UIComponents {
         if (!bot) return;
         
         // Show details section, hide list
-        const listSection = document.querySelector('.bots-list').closest('.section-block');
+        const listSection = document.querySelector('.bots-list')?.closest('.section-block');
         const detailsSection = document.getElementById('botDetailsSection');
         
         if (listSection) listSection.style.display = 'none';
