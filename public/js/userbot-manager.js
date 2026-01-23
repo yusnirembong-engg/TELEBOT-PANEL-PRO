@@ -1644,7 +1644,6 @@ class UserBotManager {
         this.showAutoTextInterface();
     }
 
-    // Update session statuses
     async updateSessionStatuses() {
         if (!window.telegramManager) return;
         
@@ -1761,7 +1760,7 @@ if (typeof window !== 'undefined') {
     window.userBotManager = new UserBotManager();
 }
 
-// Export for module usage - PERBAIKAN UTAMA
-if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
-    module.exports = UserBotManager;
+// Export for module usage - FIXED
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { UserBotManager };  // Perbaikan di sini
 }
