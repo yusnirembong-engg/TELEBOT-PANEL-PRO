@@ -1,7 +1,7 @@
 /**
  * TeleBot Pro v2.0.0 - UserBot Manager
  * Handles user interface for Telegram user bot management
- * FIXED VERSION - No conflicts or errors
+ * COMPLETE FIXED VERSION - No conflicts or errors
  */
 
 class UserBotManager {
@@ -268,54 +268,79 @@ class UserBotManager {
                 
                 <!-- Create Session Modal -->
                 <div class="modal" id="createSessionModal">
-                    <div class="modal-content">
+                    <div class="modal-content" style="max-width: 500px;">
                         <div class="modal-header">
-                            <h3><i class="fas fa-plus"></i> Connect New Telegram Account</h3>
+                            <h3><i class="fas fa-plus"></i> Connect Telegram Account</h3>
                             <button class="modal-close" id="closeCreateSession">&times;</button>
                         </div>
                         <div class="modal-body">
+                            <div class="setup-steps">
+                                <div class="step active">
+                                    <span class="step-number">1</span>
+                                    <span class="step-text">Enter Telegram Credentials</span>
+                                </div>
+                                <div class="step">
+                                    <span class="step-number">2</span>
+                                    <span class="step-text">Verify with Code</span>
+                                </div>
+                            </div>
+                            
                             <form id="createSessionForm">
                                 <div class="form-group">
-                                    <label class="form-label">API ID</label>
+                                    <label class="form-label">
+                                        <i class="fas fa-key"></i> API ID
+                                    </label>
                                     <input type="text" id="apiId" class="form-input" 
                                            placeholder="Enter API ID" required>
-                                    <small class="form-help">Get from <a href="https://my.telegram.org" target="_blank">my.telegram.org</a></small>
+                                    <small class="form-help">
+                                        Get from <a href="https://my.telegram.org" target="_blank">my.telegram.org</a> → API Development Tools
+                                    </small>
                                 </div>
                                 
                                 <div class="form-group">
-                                    <label class="form-label">API Hash</label>
+                                    <label class="form-label">
+                                        <i class="fas fa-hashtag"></i> API Hash
+                                    </label>
                                     <input type="text" id="apiHash" class="form-input" 
                                            placeholder="Enter API Hash" required>
-                                    <small class="form-help">Get from <a href="https://my.telegram.org" target="_blank">my.telegram.org</a></small>
+                                    <small class="form-help">
+                                        Get from <a href="https://my.telegram.org" target="_blank">my.telegram.org</a> → API Development Tools
+                                    </small>
                                 </div>
                                 
                                 <div class="form-group">
-                                    <label class="form-label">Phone Number</label>
+                                    <label class="form-label">
+                                        <i class="fas fa-phone"></i> Phone Number
+                                    </label>
                                     <input type="tel" id="phoneNumber" class="form-input" 
-                                           placeholder="+1234567890" required>
-                                    <small class="form-help">Include country code (e.g., +1 for US)</small>
+                                           placeholder="+628123456789" required>
+                                    <small class="form-help">
+                                        Include country code (e.g., +62 for Indonesia)
+                                    </small>
                                 </div>
                                 
                                 <div class="form-group">
                                     <div class="form-check">
                                         <input type="checkbox" id="saveSession" checked>
-                                        <label for="saveSession">Save session for future use</label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input type="checkbox" id="autoReconnect" checked>
-                                        <label for="autoReconnect">Auto-reconnect on disconnect</label>
+                                        <label for="saveSession">Save session for auto-reconnect</label>
                                     </div>
                                 </div>
                                 
-                                <div class="alert alert-info">
-                                    <i class="fas fa-info-circle"></i>
-                                    <small>You will receive a verification code on your Telegram account</small>
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    <div>
+                                        <strong>Important:</strong> After clicking "Connect", 
+                                        you will receive a <strong>5-digit verification code</strong> 
+                                        in your Telegram app.
+                                    </div>
                                 </div>
                                 
                                 <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" id="cancelCreateSession">Cancel</button>
+                                    <button type="button" class="btn btn-secondary" id="cancelCreateSession">
+                                        Cancel
+                                    </button>
                                     <button type="submit" class="btn btn-success">
-                                        <i class="fas fa-plug"></i> Connect
+                                        <i class="fas fa-plug"></i> Connect to Telegram
                                     </button>
                                 </div>
                             </form>
@@ -325,15 +350,8 @@ class UserBotManager {
                 
                 <!-- Verification Modal -->
                 <div class="modal" id="verificationModal">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h3><i class="fas fa-shield-alt"></i> Verification Required</h3>
-                        </div>
-                        <div class="modal-body">
-                            <div id="verificationContent">
-                                <!-- Verification form will be loaded here -->
-                            </div>
-                        </div>
+                    <div class="modal-content" style="max-width: 500px;">
+                        <!-- Content will be loaded dynamically -->
                     </div>
                 </div>
             </div>
@@ -745,18 +763,22 @@ class UserBotManager {
             this.refreshSessions();
         });
         
-        // Session card actions
-        document.querySelectorAll('.session-card [data-action]').forEach(button => {
-            button.addEventListener('click', (e) => {
-                const action = e.currentTarget.getAttribute('data-action');
-                const sessionCard = e.currentTarget.closest('.session-card');
+        // Session card actions (delegated event handling)
+        const sessionsList = document.getElementById('sessionsList');
+        if (sessionsList) {
+            sessionsList.addEventListener('click', (e) => {
+                const actionButton = e.target.closest('[data-action]');
+                if (!actionButton) return;
+                
+                const action = actionButton.getAttribute('data-action');
+                const sessionCard = actionButton.closest('.session-card');
                 const sessionId = sessionCard?.getAttribute('data-session-id');
                 
                 if (sessionId) {
                     this.handleSessionAction(action, sessionId);
                 }
             });
-        });
+        }
         
         // Quick actions
         document.querySelectorAll('.quick-actions [data-action]').forEach(button => {
@@ -824,18 +846,22 @@ class UserBotManager {
             this.refreshJobs();
         });
         
-        // Job card actions
-        document.querySelectorAll('.job-card [data-action]').forEach(button => {
-            button.addEventListener('click', (e) => {
-                const action = e.currentTarget.getAttribute('data-action');
-                const jobCard = e.currentTarget.closest('.job-card');
+        // Job card actions (delegated event handling)
+        const jobsList = document.getElementById('jobsList');
+        if (jobsList) {
+            jobsList.addEventListener('click', (e) => {
+                const actionButton = e.target.closest('[data-action]');
+                if (!actionButton) return;
+                
+                const action = actionButton.getAttribute('data-action');
+                const jobCard = actionButton.closest('.job-card');
                 const jobId = jobCard?.getAttribute('data-job-id');
                 
                 if (jobId) {
                     this.handleJobAction(action, jobId);
                 }
             });
-        });
+        }
         
         // Quick actions
         document.querySelectorAll('.quick-actions [data-action]').forEach(button => {
@@ -941,7 +967,7 @@ class UserBotManager {
                 throw new Error('Telegram manager not available');
             }
             
-            // Step 1: Coba koneksi (akan meminta kode verifikasi)
+            // Step 1: Try to connect (will request verification code)
             const result = await window.telegramManager.connectUserBot(
                 apiId,
                 apiHash,
@@ -950,19 +976,19 @@ class UserBotManager {
             
             if (result.success) {
                 if (result.requiresVerification) {
-                    // TAMPILKAN MODAL VERIFIKASI
+                    // SHOW VERIFICATION MODAL
                     this.showVerificationModal(result.sessionId, phoneNumber);
                     this.hideModal('createSessionModal');
                     this.showToast('Verification code sent to your Telegram', 'info');
                 } else {
-                    // Langsung terkoneksi (jarang terjadi)
+                    // Directly connected (rare case)
                     this.showToast('Connected successfully!', 'success');
                     this.hideModal('createSessionModal');
                     this.refreshSessions();
                 }
             } else {
                 if (result.requiresReauth) {
-                    // Token expired, minta login ulang
+                    // Token expired, require re-login
                     this.showToast('Session expired. Please log in again.', 'error');
                     setTimeout(() => {
                         window.app?.handleLogout();
@@ -985,77 +1011,83 @@ class UserBotManager {
     // Show verification modal - FIXED VERSION
     showVerificationModal(sessionId, phoneNumber) {
         const modal = document.getElementById('verificationModal');
-        const content = document.getElementById('verificationContent');
         
-        if (!modal || !content) {
-            // Buat modal jika belum ada
+        if (!modal) {
+            // Create modal if doesn't exist
             this.createVerificationModal();
-            return this.showVerificationModal(sessionId, phoneNumber);
+            setTimeout(() => this.showVerificationModal(sessionId, phoneNumber), 100);
+            return;
         }
         
-        content.innerHTML = `
-            <div class="verification-form">
-                <div class="verification-header">
-                    <div class="verification-icon">
-                        <i class="fab fa-telegram"></i>
-                    </div>
-                    <h3>Telegram Verification Required</h3>
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 500px;">
+                <div class="modal-header">
+                    <h3><i class="fas fa-shield-alt"></i> Telegram Verification Required</h3>
+                    <button class="modal-close" id="closeVerificationModal">&times;</button>
                 </div>
-                
-                <div class="alert alert-info">
-                    <i class="fas fa-mobile-alt"></i>
-                    <div>
-                        <p><strong>Check your Telegram app!</strong></p>
-                        <p>A verification code has been sent to:</p>
-                        <p class="phone-number">${phoneNumber}</p>
-                    </div>
-                </div>
-                
-                <div class="alert alert-warning">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <div>
-                        <small>
-                            <strong>Note:</strong> The code will come from <strong>Telegram</strong> 
-                            (not from this dashboard). Open your Telegram app to see the code.
-                        </small>
-                    </div>
-                </div>
-                
-                <form id="verificationForm">
-                    <div class="form-group">
-                        <label class="form-label">Enter 5-digit Code</label>
-                        <div class="code-input-container">
-                            <input type="text" id="verificationCode" class="form-input code-input" 
-                                   placeholder="12345" required maxlength="5" 
-                                   pattern="\\d{5}" autocomplete="off">
-                            <div class="code-hint">Enter exactly 5 digits</div>
-                        </div>
-                    </div>
-                    
-                    <div class="verification-help">
-                        <details>
-                            <summary><i class="fas fa-question-circle"></i> Need help?</summary>
-                            <div class="help-content">
-                                <ol>
-                                    <li>Open your <strong>Telegram app</strong> on your phone</li>
-                                    <li>Look for a message from <strong>"Telegram"</strong> (official)</li>
-                                    <li>You'll see a 5-digit code like <code>12345</code></li>
-                                    <li>Enter that code in the field above</li>
-                                    <li>Click <strong>Verify & Connect</strong></li>
-                                </ol>
+                <div class="modal-body">
+                    <div class="verification-form">
+                        <div class="verification-header">
+                            <div class="verification-icon">
+                                <i class="fab fa-telegram"></i>
                             </div>
-                        </details>
+                            <h3>Check Your Telegram App</h3>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <i class="fas fa-mobile-alt"></i>
+                            <div>
+                                <p><strong>Verification Code Sent!</strong></p>
+                                <p>A 5-digit code has been sent to:</p>
+                                <p class="phone-number">${phoneNumber}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <div>
+                                <small>
+                                    <strong>Note:</strong> The code will come from <strong>Telegram</strong> 
+                                    (not from this dashboard). Open your Telegram app to see the code.
+                                </small>
+                            </div>
+                        </div>
+                        
+                        <form id="verificationForm">
+                            <div class="form-group">
+                                <label class="form-label">Enter 5-digit Verification Code</label>
+                                <input type="text" id="verificationCode" class="form-input code-input" 
+                                       placeholder="12345" required maxlength="5" 
+                                       pattern="\\d{5}" autocomplete="off">
+                                <div class="code-hint">Enter exactly 5 digits</div>
+                            </div>
+                            
+                            <div class="verification-help">
+                                <details>
+                                    <summary><i class="fas fa-question-circle"></i> Need help?</summary>
+                                    <div class="help-content">
+                                        <ol>
+                                            <li>Open your <strong>Telegram app</strong> on your phone</li>
+                                            <li>Look for a message from <strong>"Telegram"</strong> (official)</li>
+                                            <li>You'll see a 5-digit code like <code>12345</code></li>
+                                            <li>Enter that code in the field above</li>
+                                            <li>Click <strong>Verify & Connect</strong></li>
+                                        </ol>
+                                    </div>
+                                </details>
+                            </div>
+                            
+                            <div class="verification-actions">
+                                <button type="button" class="btn btn-secondary" id="cancelVerification">
+                                    <i class="fas fa-times"></i> Cancel
+                                </button>
+                                <button type="submit" class="btn btn-success" id="verifyBtn">
+                                    <i class="fas fa-check"></i> Verify & Connect
+                                </button>
+                            </div>
+                        </form>
                     </div>
-                    
-                    <div class="verification-actions">
-                        <button type="button" class="btn btn-secondary" id="cancelVerification">
-                            <i class="fas fa-times"></i> Cancel
-                        </button>
-                        <button type="submit" class="btn btn-success" id="verifyBtn">
-                            <i class="fas fa-check"></i> Verify & Connect
-                        </button>
-                    </div>
-                </form>
+                </div>
             </div>
         `;
         
@@ -1065,6 +1097,7 @@ class UserBotManager {
         // Setup event handlers
         const form = document.getElementById('verificationForm');
         const cancelBtn = document.getElementById('cancelVerification');
+        const closeBtn = document.getElementById('closeVerificationModal');
         
         if (form) {
             form.addEventListener('submit', async (e) => {
@@ -1076,18 +1109,25 @@ class UserBotManager {
         if (cancelBtn) {
             cancelBtn.addEventListener('click', () => {
                 this.hideModal('verificationModal');
-                this.showCreateSessionModal(); // Kembali ke form awal
+                this.showCreateSessionModal(); // Return to initial form
             });
         }
         
-        // Auto-focus dan input helper
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                this.hideModal('verificationModal');
+                this.showCreateSessionModal(); // Return to initial form
+            });
+        }
+        
+        // Auto-focus and input helper
         const codeInput = document.getElementById('verificationCode');
         if (codeInput) {
             codeInput.addEventListener('input', (e) => {
-                // Hanya angka
+                // Only numbers
                 e.target.value = e.target.value.replace(/\D/g, '');
                 
-                // Auto-submit jika sudah 5 digit
+                // Auto-submit if 5 digits entered
                 if (e.target.value.length === 5) {
                     setTimeout(() => {
                         document.getElementById('verifyBtn')?.click();
@@ -1097,28 +1137,15 @@ class UserBotManager {
         }
     }
     
-    // Fungsi untuk membuat modal verifikasi jika belum ada
+    // Function to create verification modal if doesn't exist
     createVerificationModal() {
         const modalHTML = `
             <div class="modal" id="verificationModal">
-                <div class="modal-overlay" onclick="window.userBotManager.hideModal('verificationModal')"></div>
-                <div class="modal-content" style="max-width: 500px;">
-                    <div class="modal-header">
-                        <h3><i class="fas fa-shield-alt"></i> Telegram Verification</h3>
-                        <button class="modal-close" onclick="window.userBotManager.hideModal('verificationModal')">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                    <div class="modal-body">
-                        <div id="verificationContent">
-                            <!-- Content will be loaded here -->
-                        </div>
-                    </div>
-                </div>
+                <!-- Content will be loaded dynamically -->
             </div>
         `;
         
-        // Tambahkan ke body jika belum ada
+        // Add to body if doesn't exist
         if (!document.getElementById('verificationModal')) {
             document.body.insertAdjacentHTML('beforeend', modalHTML);
         }
@@ -1153,8 +1180,11 @@ class UserBotManager {
             } else {
                 this.showToast(`Verification failed: ${result.error}`, 'error');
                 // Reset form
-                document.getElementById('verificationCode').value = '';
-                document.getElementById('verificationCode').focus();
+                const codeInput = document.getElementById('verificationCode');
+                if (codeInput) {
+                    codeInput.value = '';
+                    codeInput.focus();
+                }
             }
         } catch (error) {
             this.showToast(`Error: ${error.message}`, 'error');
