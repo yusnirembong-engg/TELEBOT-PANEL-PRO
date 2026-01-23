@@ -176,6 +176,11 @@ function handleSuccessfulLogin(result, username, clientIP) {
     if (loginScreen) loginScreen.style.display = 'none';
     if (mainPanel) mainPanel.style.display = 'flex';
     
+    // Emit login success event
+    if (window.app && window.app.emit) {
+        window.app.emit('login:success', { username, clientIP });
+    }
+    
     // Initialize ALL managers
     initializeAllManagers();
     
@@ -255,6 +260,11 @@ function handleLoginError(errorMessage, loginBtn, errorDiv) {
     if (loginBtn) {
         loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login';
         loginBtn.disabled = false;
+    }
+    
+    // Emit login error event
+    if (window.app && window.app.emit) {
+        window.app.emit('login:error', { error: errorMessage });
     }
 }
 
@@ -409,6 +419,11 @@ function switchSection(sectionId) {
     
     // Initialize section-specific features
     initializeSection(sectionId);
+    
+    // Emit section change event
+    if (window.app && window.app.emit) {
+        window.app.emit('section:changed', { section: sectionId });
+    }
 }
 
 // Update breadcrumb (fallback)
@@ -440,6 +455,9 @@ function initializeSection(sectionId) {
             break;
         case 'telegram':
             initializeTelegramSection();
+            break;
+        case 'auto-text':
+            initializeAutoTextSection();
             break;
     }
 }
@@ -479,6 +497,14 @@ function initializeTelegramSection() {
     }
 }
 
+// Initialize auto text section (fallback)
+function initializeAutoTextSection() {
+    // Show auto text interface if userbot manager exists
+    if (window.userBotManager && window.userBotManager.showAutoTextInterface) {
+        window.userBotManager.showAutoTextInterface();
+    }
+}
+
 // Update bot stats (fallback)
 function updateBotStats(bots) {
     const totalBotsCount = document.getElementById('totalBotsCount');
@@ -509,6 +535,11 @@ function toggleTheme() {
     }
     
     showToast(`Switched to ${newTheme} theme`, 'info');
+    
+    // Emit theme change event
+    if (window.app && window.app.emit) {
+        window.app.emit('theme:changed', { theme: newTheme });
+    }
 }
 
 // Toggle sidebar (fallback)
@@ -525,6 +556,11 @@ function toggleSidebar() {
 // Refresh all (fallback)
 function refreshAll() {
     showToast('Refreshing all data...', 'info');
+    
+    // Emit refresh event
+    if (window.app && window.app.emit) {
+        window.app.emit('app:refresh');
+    }
     
     // Refresh bots
     if (window.botManager && window.botManager.listBots) {
@@ -561,6 +597,11 @@ function updateDashboardStats() {
 // Handle logout (fallback)
 function handleLogout() {
     if (confirm('Are you sure you want to logout?')) {
+        // Emit logout event
+        if (window.app && window.app.emit) {
+            window.app.emit('app:logout');
+        }
+        
         // Clear any timers
         if (window.sessionTimer) {
             clearInterval(window.sessionTimer);
@@ -655,13 +696,73 @@ function showToast(message, type = 'info') {
     }
 }
 
-// Fallback app object if ui-components.js fails
+// Inisialisasi app dengan event system
 if (!window.app) {
     window.app = {
-        init: function() {
-            console.log('App initialized (fallback)');
-            setupAdditionalListeners();
+        // Event system
+        _events: {},
+        
+        on: function(eventName, callback) {
+            if (!this._events[eventName]) {
+                this._events[eventName] = [];
+            }
+            this._events[eventName].push(callback);
+            return this; // Untuk chaining
         },
+        
+        emit: function(eventName, data) {
+            if (this._events && this._events[eventName]) {
+                console.log(`📡 Emitting event: ${eventName}`, data);
+                this._events[eventName].forEach(callback => {
+                    try {
+                        callback(data);
+                    } catch (error) {
+                        console.error(`Error in ${eventName} handler:`, error);
+                    }
+                });
+            }
+        },
+        
+        off: function(eventName, callback) {
+            if (this._events && this._events[eventName]) {
+                const index = this._events[eventName].indexOf(callback);
+                if (index > -1) {
+                    this._events[eventName].splice(index, 1);
+                }
+            }
+            return this;
+        },
+        
+        // Metode lainnya yang sudah ada
+        init: function() {
+            console.log('🚀 App initialized with event system');
+            
+            // Setup default event listeners
+            this.setupDefaultListeners();
+            
+            // Call original setup
+            setupAdditionalListeners();
+            
+            return this;
+        },
+        
+        setupDefaultListeners: function() {
+            // Listen for login success
+            this.on('login:success', function(data) {
+                console.log('🎉 Login success event received:', data);
+            });
+            
+            // Listen for section changes
+            this.on('section:changed', function(data) {
+                console.log('📍 Section changed:', data.section);
+            });
+            
+            // Listen for theme changes
+            this.on('theme:changed', function(data) {
+                console.log('🎨 Theme changed to:', data.theme);
+            });
+        },
+        
         switchSection: switchSection,
         showToast: showToast,
         updateDashboardStats: updateDashboardStats
@@ -727,3 +828,64 @@ if (!window.userBotManager) {
 
 // Initialize the app
 window.app.init();
+
+// Add CSS for animations
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes slideOut {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+    }
+`;
+document.head.appendChild(style);
+
+// Error handling
+window.addEventListener('error', function(event) {
+    console.error('🚨 Global error:', event.error);
+    
+    // Show error toast
+    showToast(`Error: ${event.message}`, 'error');
+    
+    // Emit error event
+    if (window.app && window.app.emit) {
+        window.app.emit('app:error', { 
+            error: event.error, 
+            message: event.message,
+            filename: event.filename,
+            lineno: event.lineno,
+            colno: event.colno
+        });
+    }
+});
+
+// Unhandled promise rejection
+window.addEventListener('unhandledrejection', function(event) {
+    console.error('🚨 Unhandled promise rejection:', event.reason);
+    
+    // Show error toast
+    showToast(`Promise error: ${event.reason.message || event.reason}`, 'error');
+    
+    // Emit error event
+    if (window.app && window.app.emit) {
+        window.app.emit('app:promise-error', { 
+            reason: event.reason 
+        });
+    }
+});
