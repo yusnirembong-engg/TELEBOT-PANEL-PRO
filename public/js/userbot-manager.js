@@ -1,6 +1,7 @@
 /**
  * TeleBot Pro v2.0.0 - UserBot Manager
  * Handles user interface for Telegram user bot management
+ * FIXED VERSION - No conflicts or errors
  */
 
 class UserBotManager {
@@ -912,90 +913,146 @@ class UserBotManager {
         }
     }
     
-    // Handle create session
+    // Handle create session - FIXED VERSION
     async handleCreateSession() {
         const apiId = document.getElementById('apiId')?.value;
         const apiHash = document.getElementById('apiHash')?.value;
         const phoneNumber = document.getElementById('phoneNumber')?.value;
+        const saveSession = document.getElementById('saveSession')?.checked;
         
         if (!apiId || !apiHash || !phoneNumber) {
             this.showToast('Please fill all fields', 'error');
             return;
         }
         
-        // Validate credentials
-        if (!window.telegramManager) {
-            this.showToast('Telegram manager not available', 'error');
-            return;
-        }
-        
-        const validation = window.telegramManager.validateApiCredentials(apiId, apiHash);
-        if (!validation.valid) {
-            this.showToast(validation.errors.join(', '), 'error');
-            return;
-        }
-        
-        const phoneValidation = window.telegramManager.validatePhoneNumber(phoneNumber);
-        if (!phoneValidation.valid) {
-            this.showToast(phoneValidation.error, 'error');
-            return;
-        }
-        
         // Show loading
         this.showToast('Connecting to Telegram...', 'info');
         
+        const createBtn = document.querySelector('#createSessionForm button[type="submit"]');
+        const originalText = createBtn?.innerHTML;
+        
+        if (createBtn) {
+            createBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Connecting...';
+            createBtn.disabled = true;
+        }
+        
         try {
+            if (!window.telegramManager) {
+                throw new Error('Telegram manager not available');
+            }
+            
+            // Step 1: Coba koneksi (akan meminta kode verifikasi)
             const result = await window.telegramManager.connectUserBot(
                 apiId,
                 apiHash,
-                phoneValidation.cleaned
+                phoneNumber
             );
             
             if (result.success) {
                 if (result.requiresVerification) {
-                    // Show verification modal
-                    this.showVerificationModal(result.sessionId);
+                    // TAMPILKAN MODAL VERIFIKASI
+                    this.showVerificationModal(result.sessionId, phoneNumber);
                     this.hideModal('createSessionModal');
+                    this.showToast('Verification code sent to your Telegram', 'info');
                 } else {
+                    // Langsung terkoneksi (jarang terjadi)
                     this.showToast('Connected successfully!', 'success');
                     this.hideModal('createSessionModal');
                     this.refreshSessions();
                 }
             } else {
-                this.showToast(`Connection failed: ${result.error}`, 'error');
+                if (result.requiresReauth) {
+                    // Token expired, minta login ulang
+                    this.showToast('Session expired. Please log in again.', 'error');
+                    setTimeout(() => {
+                        window.app?.handleLogout();
+                    }, 2000);
+                } else {
+                    this.showToast(`Connection failed: ${result.error}`, 'error');
+                }
             }
         } catch (error) {
             this.showToast(`Error: ${error.message}`, 'error');
+            console.error('Create session error:', error);
+        } finally {
+            if (createBtn) {
+                createBtn.innerHTML = originalText;
+                createBtn.disabled = false;
+            }
         }
     }
     
-    // Show verification modal
-    showVerificationModal(sessionId) {
+    // Show verification modal - FIXED VERSION
+    showVerificationModal(sessionId, phoneNumber) {
         const modal = document.getElementById('verificationModal');
         const content = document.getElementById('verificationContent');
         
-        if (!modal || !content) return;
+        if (!modal || !content) {
+            // Buat modal jika belum ada
+            this.createVerificationModal();
+            return this.showVerificationModal(sessionId, phoneNumber);
+        }
         
         content.innerHTML = `
             <div class="verification-form">
+                <div class="verification-header">
+                    <div class="verification-icon">
+                        <i class="fab fa-telegram"></i>
+                    </div>
+                    <h3>Telegram Verification Required</h3>
+                </div>
+                
                 <div class="alert alert-info">
-                    <i class="fas fa-shield-alt"></i>
-                    <p>A verification code has been sent to your Telegram account.</p>
-                    <p>Please enter the code below:</p>
+                    <i class="fas fa-mobile-alt"></i>
+                    <div>
+                        <p><strong>Check your Telegram app!</strong></p>
+                        <p>A verification code has been sent to:</p>
+                        <p class="phone-number">${phoneNumber}</p>
+                    </div>
+                </div>
+                
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <div>
+                        <small>
+                            <strong>Note:</strong> The code will come from <strong>Telegram</strong> 
+                            (not from this dashboard). Open your Telegram app to see the code.
+                        </small>
+                    </div>
                 </div>
                 
                 <form id="verificationForm">
                     <div class="form-group">
-                        <label class="form-label">Verification Code</label>
-                        <input type="text" id="verificationCode" class="form-input" 
-                               placeholder="Enter 5-digit code" required
-                               maxlength="5" pattern="\\d{5}">
+                        <label class="form-label">Enter 5-digit Code</label>
+                        <div class="code-input-container">
+                            <input type="text" id="verificationCode" class="form-input code-input" 
+                                   placeholder="12345" required maxlength="5" 
+                                   pattern="\\d{5}" autocomplete="off">
+                            <div class="code-hint">Enter exactly 5 digits</div>
+                        </div>
                     </div>
                     
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" id="cancelVerification">Cancel</button>
-                        <button type="submit" class="btn btn-success">
-                            <i class="fas fa-check"></i> Verify
+                    <div class="verification-help">
+                        <details>
+                            <summary><i class="fas fa-question-circle"></i> Need help?</summary>
+                            <div class="help-content">
+                                <ol>
+                                    <li>Open your <strong>Telegram app</strong> on your phone</li>
+                                    <li>Look for a message from <strong>"Telegram"</strong> (official)</li>
+                                    <li>You'll see a 5-digit code like <code>12345</code></li>
+                                    <li>Enter that code in the field above</li>
+                                    <li>Click <strong>Verify & Connect</strong></li>
+                                </ol>
+                            </div>
+                        </details>
+                    </div>
+                    
+                    <div class="verification-actions">
+                        <button type="button" class="btn btn-secondary" id="cancelVerification">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                        <button type="submit" class="btn btn-success" id="verifyBtn">
+                            <i class="fas fa-check"></i> Verify & Connect
                         </button>
                     </div>
                 </form>
@@ -1003,16 +1060,68 @@ class UserBotManager {
         `;
         
         modal.classList.add('active');
+        document.getElementById('verificationCode')?.focus();
         
         // Setup event handlers
-        document.getElementById('verificationForm')?.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            await this.handleVerification(sessionId);
-        });
+        const form = document.getElementById('verificationForm');
+        const cancelBtn = document.getElementById('cancelVerification');
         
-        document.getElementById('cancelVerification')?.addEventListener('click', () => {
-            this.hideModal('verificationModal');
-        });
+        if (form) {
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                await this.handleVerification(sessionId);
+            });
+        }
+        
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => {
+                this.hideModal('verificationModal');
+                this.showCreateSessionModal(); // Kembali ke form awal
+            });
+        }
+        
+        // Auto-focus dan input helper
+        const codeInput = document.getElementById('verificationCode');
+        if (codeInput) {
+            codeInput.addEventListener('input', (e) => {
+                // Hanya angka
+                e.target.value = e.target.value.replace(/\D/g, '');
+                
+                // Auto-submit jika sudah 5 digit
+                if (e.target.value.length === 5) {
+                    setTimeout(() => {
+                        document.getElementById('verifyBtn')?.click();
+                    }, 500);
+                }
+            });
+        }
+    }
+    
+    // Fungsi untuk membuat modal verifikasi jika belum ada
+    createVerificationModal() {
+        const modalHTML = `
+            <div class="modal" id="verificationModal">
+                <div class="modal-overlay" onclick="window.userBotManager.hideModal('verificationModal')"></div>
+                <div class="modal-content" style="max-width: 500px;">
+                    <div class="modal-header">
+                        <h3><i class="fas fa-shield-alt"></i> Telegram Verification</h3>
+                        <button class="modal-close" onclick="window.userBotManager.hideModal('verificationModal')">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="verificationContent">
+                            <!-- Content will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Tambahkan ke body jika belum ada
+        if (!document.getElementById('verificationModal')) {
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+        }
     }
     
     // Handle verification
@@ -1026,6 +1135,14 @@ class UserBotManager {
         
         this.showToast('Verifying...', 'info');
         
+        const verifyBtn = document.getElementById('verifyBtn');
+        const originalText = verifyBtn?.innerHTML;
+        
+        if (verifyBtn) {
+            verifyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
+            verifyBtn.disabled = true;
+        }
+        
         try {
             const result = await window.telegramManager.verifyConnection(sessionId, code);
             
@@ -1035,9 +1152,17 @@ class UserBotManager {
                 this.refreshSessions();
             } else {
                 this.showToast(`Verification failed: ${result.error}`, 'error');
+                // Reset form
+                document.getElementById('verificationCode').value = '';
+                document.getElementById('verificationCode').focus();
             }
         } catch (error) {
             this.showToast(`Error: ${error.message}`, 'error');
+        } finally {
+            if (verifyBtn) {
+                verifyBtn.innerHTML = originalText;
+                verifyBtn.disabled = false;
+            }
         }
     }
     
