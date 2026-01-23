@@ -1,1506 +1,1322 @@
 /**
- * TeleBot Pro v2.0.0 - Main Application
- * Main entry point and application controller
+ * TeleBot Pro v2.0.0 - UI Components
+ * Handle UI components, modals, toasts, and notifications
  */
 
-class TeleBotApp {
+class UIComponents {
     constructor() {
-        this.currentSection = 'dashboard';
-        this.isInitialized = false;
-        this.sessionTimer = null;
-        this.updateIntervals = [];
-        this.apiStatus = {
-            auth: 'unknown',
-            botControl: 'unknown',
-            telegram: 'unknown',
-            terminal: 'unknown'
-        };
+        this.modals = new Map();
+        this.toasts = [];
+        this.notifications = [];
+        this.sidebarCollapsed = false;
+        this.currentTheme = 'dark';
         
         // Initialize
         this.init();
     }
     
     init() {
-        console.log('🚀 TeleBot Pro v2.0.0 Initializing...');
-        
-        // Initialize all managers dengan fallback
-        this.initializeManagers();
-        
-        // Setup event listeners
+        console.log('🎨 UI Components initialized');
+        this.loadTheme();
         this.setupEventListeners();
-        
-        // Setup session timer
-        this.setupSessionTimer();
-        
-        // Setup periodic updates
-        this.setupPeriodicUpdates();
-        
-        // Check API status
-        this.checkAPIStatus();
-        
-        this.isInitialized = true;
-        console.log('✅ TeleBot Pro v2.0.0 Initialized');
-        
-        // Emit initialized event
-        this.emitEvent('initialized');
+        this.createContainers();
     }
     
-    // Initialize all managers dengan fallback yang aman - FIXED VERSION
-    initializeManagers() {
-        console.log('🔄 Initializing managers...');
-        
-        // Create global namespace if it doesn't exist
-        if (!window.managers) {
-            window.managers = {};
-        }
-        
-        // Auth Manager
-        if (!window.authManager) {
-            console.warn('⚠️ Auth manager not found - creating fallback');
-            window.authManager = this.createFallbackAuthManager();
-            window.managers.auth = window.authManager;
-        } else {
-            console.log('✅ Auth manager loaded');
-            window.managers.auth = window.authManager;
-        }
-        
-        // Bot Manager
-        if (!window.botManager) {
-            console.warn('⚠️ Bot manager not found - creating fallback');
-            window.botManager = this.createFallbackBotManager();
-            window.managers.bot = window.botManager;
-        } else {
-            console.log('✅ Bot manager loaded');
-            window.managers.bot = window.botManager;
-        }
-        
-        // Telegram Manager
-        if (!window.telegramManager) {
-            console.warn('⚠️ Telegram manager not found - creating fallback');
-            window.telegramManager = this.createFallbackTelegramManager();
-            window.managers.telegram = window.telegramManager;
-        } else {
-            console.log('✅ Telegram manager loaded');
-            window.managers.telegram = window.telegramManager;
-        }
-        
-        // Terminal Manager
-        if (!window.terminalManager) {
-            console.warn('⚠️ Terminal manager not found - creating fallback');
-            window.terminalManager = this.createFallbackTerminalManager();
-            window.managers.terminal = window.terminalManager;
-        } else {
-            console.log('✅ Terminal manager loaded');
-            window.managers.terminal = window.terminalManager;
-        }
-        
-        // UserBot Manager
-        if (!window.userBotManager) {
-            console.warn('⚠️ UserBot manager not found - creating fallback');
-            window.userBotManager = this.createFallbackUserBotManager();
-            window.managers.userBot = window.userBotManager;
-        } else {
-            console.log('✅ UserBot manager loaded');
-            window.managers.userBot = window.userBotManager;
-        }
-        
-        // UI Components - FIXED: Gunakan console.warn bukan console.error
-        console.log('🔍 Checking for UI components...');
-        
-        let uiComponentsFound = null;
-        
-        // Cari UI components di beberapa kemungkinan lokasi
-        if (window.uiComponents) {
-            uiComponentsFound = window.uiComponents;
-            console.log('✅ Found UI components as window.uiComponents');
-        } else if (window.UIComponents) {
-            uiComponentsFound = window.UIComponents;
-            console.log('✅ Found UI components as window.UIComponents');
-        } else if (window.uiManager) {
-            uiComponentsFound = window.uiManager;
-            console.log('✅ Found UI components as window.uiManager');
-        } else if (window.components && window.components.ui) {
-            uiComponentsFound = window.components.ui;
-            console.log('✅ Found UI components as window.components.ui');
-        }
-        
-        if (uiComponentsFound) {
-            window.uiComponents = uiComponentsFound;
-            window.managers.ui = uiComponentsFound;
-            console.log('✅ UI components loaded from existing source');
-        } else {
-            console.warn('⚠️ UI components not found - creating fallback');
-            window.uiComponents = this.createFallbackUIComponents();
-            window.managers.ui = window.uiComponents;
-        }
-        
-        // Initialize UI components jika ada
-        if (window.uiComponents) {
-            console.log('🔧 Initializing UI components...');
-            
-            // Coba berbagai metode initialize
-            const initMethods = ['initializeAll', 'init', 'initialize', 'setup'];
-            let initialized = false;
-            
-            for (const method of initMethods) {
-                if (typeof window.uiComponents[method] === 'function') {
-                    try {
-                        console.log(`🔧 Trying ${method}()...`);
-                        window.uiComponents[method]();
-                        console.log(`✅ UI components initialized via ${method}()`);
-                        initialized = true;
-                        break;
-                    } catch (error) {
-                        console.warn(`⚠️ ${method}() failed:`, error.message);
-                    }
-                }
-            }
-            
-            if (!initialized) {
-                console.warn('⚠️ No valid initialization method found, creating basic UI');
-                this.setupBasicUI();
-            }
-        } else {
-            console.error('❌ UI components is undefined after creation');
-            this.setupBasicUI();
-        }
-        
-        console.log('✅ All managers initialized (some with fallbacks)');
-        console.log('📊 Loaded managers:', Object.keys(window.managers));
-        
-        // Emit event bahwa managers telah diinisialisasi
-        this.emitEvent('managers-initialized', window.managers);
+    loadTheme() {
+        const savedTheme = localStorage.getItem('theme');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        this.currentTheme = savedTheme || (prefersDark ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme', this.currentTheme);
     }
     
-    // Helper untuk setup UI dasar
-    setupBasicUI() {
-        console.log('🔧 Setting up basic UI infrastructure...');
+    createContainers() {
+        // Toast container
+        if (!document.getElementById('toastContainer')) {
+            const container = document.createElement('div');
+            container.id = 'toastContainer';
+            container.className = 'toast-container toast-container-top-right';
+            container.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 9999;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                max-width: 350px;
+            `;
+            document.body.appendChild(container);
+        }
+        
+        // Modal container
+        if (!document.getElementById('modalContainer')) {
+            const container = document.createElement('div');
+            container.id = 'modalContainer';
+            container.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                z-index: 10000;
+                display: none;
+            `;
+            document.body.appendChild(container);
+        }
+    }
+    
+    setupEventListeners() {
+        // Theme toggle
+        document.getElementById('themeToggle')?.addEventListener('click', () => {
+            this.toggleTheme();
+        });
+        
+        // Sidebar toggle
+        document.getElementById('sidebarToggle')?.addEventListener('click', () => {
+            this.toggleSidebar();
+        });
+        
+        document.getElementById('sidebarToggleMobile')?.addEventListener('click', () => {
+            this.toggleSidebar();
+        });
+        
+        // Notifications
+        document.getElementById('notificationsBtn')?.addEventListener('click', () => {
+            this.toggleNotifications();
+        });
+        
+        document.getElementById('closeNotifications')?.addEventListener('click', () => {
+            this.hideNotifications();
+        });
+        
+        // Navigation links
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const section = link.getAttribute('data-section');
+                this.switchSection(section);
+            });
+        });
+        
+        // Logout button
+        document.getElementById('logoutBtn')?.addEventListener('click', () => {
+            this.handleLogout();
+        });
+        
+        // Refresh button
+        document.getElementById('refreshBtn')?.addEventListener('click', () => {
+            this.refreshAll();
+        });
+        
+        // Settings button
+        document.getElementById('settingsBtn')?.addEventListener('click', () => {
+            this.showSettings();
+        });
+    }
+    
+    // Section switching
+    switchSection(sectionId) {
+        console.log(`Switching to section: ${sectionId}`);
+        
+        // Hide all sections
+        document.querySelectorAll('.content-section').forEach(section => {
+            section.classList.remove('active');
+        });
+        
+        // Show selected section
+        const sectionElement = document.getElementById(sectionId + 'Section');
+        if (sectionElement) {
+            sectionElement.classList.add('active');
+        } else {
+            // Try dynamic content
+            this.loadDynamicSection(sectionId);
+        }
+        
+        // Update nav links
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.classList.remove('active');
+        });
+        
+        const navLink = document.querySelector(`.nav-link[data-section="${sectionId}"]`);
+        if (navLink) {
+            navLink.classList.add('active');
+        }
+        
+        // Update breadcrumb
+        this.updateBreadcrumb(sectionId);
+        
+        // Trigger section change event
+        this.emitEvent('section-change', sectionId);
+        
+        // Section-specific initialization
+        this.initializeSection(sectionId);
+    }
+    
+    updateBreadcrumb(sectionId) {
+        const breadcrumb = document.getElementById('breadcrumb');
+        if (!breadcrumb) return;
+        
+        const sectionNames = {
+            'dashboard': 'Dashboard',
+            'terminal': 'Terminal',
+            'bot-control': 'Bot Control',
+            'telegram': 'Telegram User Bot',
+            'auto-text': 'Auto Text',
+            'scheduler': 'Scheduler',
+            'config': 'Configuration',
+            'users': 'Users & Groups',
+            'logs': 'System Logs',
+            'monitoring': 'Monitoring',
+            'backup': 'Backup',
+            'chat-manager': 'Chat Manager',
+            'broadcast': 'Broadcast',
+            'analytics': 'Analytics'
+        };
+        
+        breadcrumb.innerHTML = `
+            <span><i class="fas fa-home"></i> ${sectionNames[sectionId] || sectionId}</span>
+        `;
+    }
+    
+    initializeSection(sectionId) {
+        switch(sectionId) {
+            case 'terminal':
+                this.initializeTerminal();
+                break;
+            case 'bot-control':
+                this.initializeBotControl();
+                break;
+            case 'telegram':
+                this.initializeTelegram();
+                break;
+            case 'auto-text':
+                this.initializeAutoText();
+                break;
+        }
+    }
+    
+    initializeTerminal() {
+        // Setup terminal if terminal manager exists
+        if (window.terminalManager) {
+            const terminalOutput = document.getElementById('terminalOutput');
+            const commandInput = document.getElementById('commandInput');
+            
+            if (terminalOutput && commandInput) {
+                window.terminalManager.setTerminalElements(terminalOutput, commandInput);
+                
+                // Setup terminal event listeners
+                document.getElementById('executeCommand')?.addEventListener('click', () => {
+                    window.terminalManager.executeCommand();
+                });
+                
+                document.getElementById('terminalExecute')?.addEventListener('click', () => {
+                    window.terminalManager.executeCommand();
+                });
+                
+                document.getElementById('clearTerminal')?.addEventListener('click', () => {
+                    window.terminalManager.clearTerminal();
+                });
+                
+                document.getElementById('copyTerminal')?.addEventListener('click', () => {
+                    window.terminalManager.copyOutput();
+                });
+                
+                document.getElementById('downloadTerminal')?.addEventListener('click', () => {
+                    window.terminalManager.downloadOutput();
+                });
+                
+                document.getElementById('terminalFullscreen')?.addEventListener('click', () => {
+                    window.terminalManager.toggleFullscreen();
+                });
+                
+                document.getElementById('terminalHelp')?.addEventListener('click', () => {
+                    window.terminalManager.showHelp();
+                });
+                
+                document.getElementById('terminalHistory')?.addEventListener('click', () => {
+                    window.terminalManager.showHistory();
+                });
+                
+                // Example commands
+                document.querySelectorAll('.example-command').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        const command = e.currentTarget.getAttribute('data-command');
+                        if (commandInput) {
+                            commandInput.value = command;
+                            commandInput.focus();
+                        }
+                    });
+                });
+                
+                // Focus input
+                setTimeout(() => {
+                    commandInput.focus();
+                }, 100);
+            }
+        }
+    }
+    
+    initializeBotControl() {
+        // Setup bot control if bot manager exists
+        if (window.botManager) {
+            // Load bots
+            this.loadBots();
+            
+            // Setup event listeners
+            document.getElementById('createBotBtn')?.addEventListener('click', () => {
+                this.showCreateBotModal();
+            });
+            
+            document.getElementById('refreshBotsBtn')?.addEventListener('click', () => {
+                this.loadBots();
+            });
+            
+            document.getElementById('createFirstBot')?.addEventListener('click', () => {
+                this.showCreateBotModal();
+            });
+            
+            document.getElementById('backToListBtn')?.addEventListener('click', () => {
+                this.showBotList();
+            });
+            
+            // Quick actions
+            document.querySelectorAll('.quick-actions [data-action]').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const action = e.currentTarget.getAttribute('data-action');
+                    this.handleBotAction(action);
+                });
+            });
+            
+            // Search and filter
+            const searchInput = document.getElementById('botSearch');
+            const filterSelect = document.getElementById('botFilter');
+            
+            if (searchInput) {
+                searchInput.addEventListener('input', () => {
+                    this.filterBots(searchInput.value, filterSelect?.value);
+                });
+            }
+            
+            if (filterSelect) {
+                filterSelect.addEventListener('change', () => {
+                    this.filterBots(searchInput?.value, filterSelect.value);
+                });
+            }
+        }
+    }
+    
+    initializeTelegram() {
+        // Initialize telegram section
+        if (window.userBotManager) {
+            window.userBotManager.showUserBotInterface();
+        }
+    }
+    
+    initializeAutoText() {
+        // Initialize auto-text section
+        if (window.userBotManager) {
+            window.userBotManager.showAutoTextInterface();
+        }
+    }
+    
+    async loadBots() {
+        if (!window.botManager) return;
         
         try {
-            // 1. Pastikan toast container ada
-            if (!document.getElementById('toastContainer')) {
-                const container = document.createElement('div');
-                container.id = 'toastContainer';
-                container.className = 'toast-container';
-                container.style.cssText = `
-                    position: fixed;
-                    top: 20px;
-                    right: 20px;
-                    z-index: 9999;
-                    display: flex;
-                    flex-direction: column;
-                    gap: 10px;
-                    max-width: 350px;
-                `;
-                document.body.appendChild(container);
-                console.log('✅ Created toast container');
+            const result = await window.botManager.listBots();
+            if (result.success) {
+                this.renderBots(result.bots);
+            } else {
+                this.showToast('Failed to load bots: ' + result.error, 'error');
             }
-            
-            // 2. Pastikan modal container ada
-            if (!document.getElementById('modalContainer')) {
-                const modalContainer = document.createElement('div');
-                modalContainer.id = 'modalContainer';
-                modalContainer.style.cssText = `
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    z-index: 10000;
-                    display: none;
-                `;
-                document.body.appendChild(modalContainer);
-                console.log('✅ Created modal container');
-            }
-            
-            // 3. Setup tema dasar
-            if (!localStorage.getItem('theme')) {
-                const prefersDark = window.matchMedia && 
-                    window.matchMedia('(prefers-color-scheme: dark)').matches;
-                localStorage.setItem('theme', prefersDark ? 'dark' : 'light');
-            }
-            
-            // 4. Apply tema
-            const theme = localStorage.getItem('theme') || 'light';
-            document.documentElement.setAttribute('data-theme', theme);
-            
-            console.log('✅ Basic UI setup complete');
-            
         } catch (error) {
-            console.error('❌ Failed to setup basic UI:', error);
+            console.error('Error loading bots:', error);
+            this.showToast('Error loading bots', 'error');
         }
     }
     
-    // Create fallback auth manager
-    createFallbackAuthManager() {
-        const fallbackAuth = {
-            // Authentication methods
-            isAuthenticated: () => {
-                // Check localStorage for token
-                const token = localStorage.getItem('auth_token');
-                const expiry = localStorage.getItem('auth_expiry');
-                return token && expiry && new Date(expiry) > new Date();
-            },
-            
-            login: async (username, password, clientIP = null) => {
-                console.log('Fallback login attempt:', username);
-                
-                // Simulate API call delay
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                // Check for demo credentials
-                if (username === 'admin' && password === 'admin123') {
-                    // Create fake token
-                    const token = 'fallback_token_' + Date.now();
-                    const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-                    
-                    // Store in localStorage
-                    localStorage.setItem('auth_token', token);
-                    localStorage.setItem('auth_expiry', expiry.toISOString());
-                    localStorage.setItem('auth_user', JSON.stringify({
-                        username: 'admin',
-                        role: 'administrator'
-                    }));
-                    
-                    return {
-                        success: true,
-                        token: token,
-                        user: { username: 'admin', role: 'administrator' },
-                        sessionId: 'session_' + Date.now()
-                    };
-                }
-                
-                return {
-                    success: false,
-                    error: 'Invalid credentials. Try admin/admin123'
-                };
-            },
-            
-            logout: async () => {
-                // Clear localStorage
-                localStorage.removeItem('auth_token');
-                localStorage.removeItem('auth_expiry');
-                localStorage.removeItem('auth_user');
-                return { success: true };
-            },
-            
-            getAuthHeaders: () => {
-                const token = localStorage.getItem('auth_token');
-                return token ? { Authorization: `Bearer ${token}` } : {};
-            },
-            
-            verifyToken: async () => {
-                const token = localStorage.getItem('auth_token');
-                const expiry = localStorage.getItem('auth_expiry');
-                
-                if (!token || !expiry) {
-                    return { valid: false, reason: 'No token found' };
-                }
-                
-                if (new Date(expiry) <= new Date()) {
-                    return { valid: false, reason: 'Token expired' };
-                }
-                
-                return { valid: true, expiresAt: new Date(expiry) };
-            },
-            
-            refreshToken: async () => {
-                // In fallback mode, just extend the expiry
-                const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
-                localStorage.setItem('auth_expiry', expiry.toISOString());
-                return { success: true, newExpiry: expiry };
-            },
-            
-            getUser: () => {
-                const userStr = localStorage.getItem('auth_user');
-                if (userStr) {
-                    try {
-                        return JSON.parse(userStr);
-                    } catch (e) {
-                        return null;
-                    }
-                }
-                return null;
-            },
-            
-            getSessionInfo: () => {
-                const expiry = localStorage.getItem('auth_expiry');
-                if (!expiry) return null;
-                
-                const expiryDate = new Date(expiry);
-                const now = new Date();
-                const timeLeft = expiryDate.getTime() - now.getTime();
-                
-                // Format time left
-                const hours = Math.floor(timeLeft / (1000 * 60 * 60));
-                const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
-                const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
-                
-                return {
-                    expiresAt: expiryDate,
-                    timeLeft: timeLeft,
-                    timeLeftFormatted: `${hours}h ${minutes}m ${seconds}s`,
-                    isValid: timeLeft > 0
-                };
-            }
-        };
+    renderBots(bots) {
+        const botsList = document.getElementById('botsList');
+        if (!botsList) return;
         
-        return fallbackAuth;
-    }
-    
-    // Create fallback bot manager
-    createFallbackBotManager() {
-        const fallbackBot = {
-            // Bot data
-            bots: [
-                {
-                    id: 'bot_1',
-                    name: 'Sample Bot 1',
-                    status: 'stopped',
-                    token: 'hidden',
-                    webhookUrl: '',
-                    stats: { messagesSent: 0, users: 0 }
-                },
-                {
-                    id: 'bot_2',
-                    name: 'Sample Bot 2',
-                    status: 'stopped',
-                    token: 'hidden',
-                    webhookUrl: '',
-                    stats: { messagesSent: 0, users: 0 }
-                }
-            ],
-            
-            // Methods
-            getAllBots: () => {
-                return fallbackBot.bots;
-            },
-            
-            listBots: async () => {
-                // Simulate API call
-                await new Promise(resolve => setTimeout(resolve, 500));
-                return {
-                    success: true,
-                    bots: fallbackBot.bots,
-                    total: fallbackBot.bots.length
-                };
-            },
-            
-            getBot: (id) => {
-                return fallbackBot.bots.find(bot => bot.id === id);
-            },
-            
-            createBot: async (name, token) => {
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                const newBot = {
-                    id: 'bot_' + Date.now(),
-                    name: name,
-                    token: token,
-                    status: 'stopped',
-                    webhookUrl: '',
-                    createdAt: new Date().toISOString(),
-                    stats: { messagesSent: 0, users: 0 }
-                };
-                
-                fallbackBot.bots.push(newBot);
-                
-                return {
-                    success: true,
-                    bot: newBot,
-                    message: 'Bot created (fallback mode)'
-                };
-            },
-            
-            startBot: async (id) => {
-                const bot = fallbackBot.bots.find(b => b.id === id);
-                if (bot) {
-                    bot.status = 'running';
-                    await new Promise(resolve => setTimeout(resolve, 800));
-                    return { success: true, message: 'Bot started (fallback mode)' };
-                }
-                return { success: false, error: 'Bot not found' };
-            },
-            
-            stopBot: async (id) => {
-                const bot = fallbackBot.bots.find(b => b.id === id);
-                if (bot) {
-                    bot.status = 'stopped';
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    return { success: true, message: 'Bot stopped (fallback mode)' };
-                }
-                return { success: false, error: 'Bot not found' };
-            },
-            
-            deleteBot: async (id) => {
-                const index = fallbackBot.bots.findIndex(b => b.id === id);
-                if (index !== -1) {
-                    fallbackBot.bots.splice(index, 1);
-                    await new Promise(resolve => setTimeout(resolve, 300));
-                    return { success: true, message: 'Bot deleted (fallback mode)' };
-                }
-                return { success: false, error: 'Bot not found' };
-            },
-            
-            startAllBots: async () => {
-                const results = [];
-                for (const bot of fallbackBot.bots) {
-                    if (bot.status !== 'running') {
-                        bot.status = 'running';
-                        results.push({ botId: bot.id, success: true });
-                        await new Promise(resolve => setTimeout(resolve, 200));
-                    }
-                }
-                return results;
-            },
-            
-            stopAllBots: async () => {
-                const results = [];
-                for (const bot of fallbackBot.bots) {
-                    if (bot.status === 'running') {
-                        bot.status = 'stopped';
-                        results.push({ botId: bot.id, success: true });
-                        await new Promise(resolve => setTimeout(resolve, 200));
-                    }
-                }
-                return results;
-            },
-            
-            updateBotStats: async (id, stats) => {
-                const bot = fallbackBot.bots.find(b => b.id === id);
-                if (bot) {
-                    bot.stats = { ...bot.stats, ...stats };
-                    return { success: true };
-                }
-                return { success: false };
-            },
-            
-            cleanup: () => {
-                console.log('Fallback bot manager cleanup');
-                fallbackBot.bots = [];
-            }
-        };
-        
-        return fallbackBot;
-    }
-    
-    // Create fallback telegram manager
-    createFallbackTelegramManager() {
-        const fallbackTelegram = {
-            // Session data
-            sessions: [
-                {
-                    id: 'session_1',
-                    name: 'Personal Account',
-                    phone: '+1234567890',
-                    status: 'disconnected',
-                    lastActive: null,
-                    userId: 123456789
-                }
-            ],
-            
-            // Methods
-            getAllSessions: () => {
-                return fallbackTelegram.sessions;
-            },
-            
-            getSessionStatus: async (sessionId) => {
-                const session = fallbackTelegram.sessions.find(s => s.id === sessionId);
-                if (session) {
-                    await new Promise(resolve => setTimeout(resolve, 300));
-                    return {
-                        success: true,
-                        session: session,
-                        isConnected: session.status === 'connected'
-                    };
-                }
-                return { success: false, error: 'Session not found' };
-            },
-            
-            connectSession: async (sessionId) => {
-                const session = fallbackTelegram.sessions.find(s => s.id === sessionId);
-                if (session) {
-                    session.status = 'connected';
-                    session.lastActive = new Date().toISOString();
-                    await new Promise(resolve => setTimeout(resolve, 1500));
-                    return {
-                        success: true,
-                        message: 'Session connected (fallback mode)'
-                    };
-                }
-                return { success: false, error: 'Session not found' };
-            },
-            
-            disconnectSession: async (sessionId) => {
-                const session = fallbackTelegram.sessions.find(s => s.id === sessionId);
-                if (session) {
-                    session.status = 'disconnected';
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    return {
-                        success: true,
-                        message: 'Session disconnected (fallback mode)'
-                    };
-                }
-                return { success: false, error: 'Session not found' };
-            },
-            
-            createSession: async (phoneNumber) => {
-                const newSession = {
-                    id: 'session_' + Date.now(),
-                    name: 'Session ' + phoneNumber,
-                    phone: phoneNumber,
-                    status: 'disconnected',
-                    lastActive: null,
-                    userId: Math.floor(Math.random() * 1000000000),
-                    createdAt: new Date().toISOString()
-                };
-                
-                fallbackTelegram.sessions.push(newSession);
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                return {
-                    success: true,
-                    session: newSession,
-                    message: 'Session created (fallback mode)'
-                };
-            },
-            
-            deleteSession: async (sessionId) => {
-                const index = fallbackTelegram.sessions.findIndex(s => s.id === sessionId);
-                if (index !== -1) {
-                    fallbackTelegram.sessions.splice(index, 1);
-                    await new Promise(resolve => setTimeout(resolve, 300));
-                    return { success: true, message: 'Session deleted (fallback mode)' };
-                }
-                return { success: false, error: 'Session not found' };
-            },
-            
-            getSessionInfo: async (sessionId) => {
-                const session = fallbackTelegram.sessions.find(s => s.id === sessionId);
-                if (session) {
-                    // Simulate getting user info
-                    const userInfo = {
-                        id: session.userId,
-                        firstName: 'Test',
-                        lastName: 'User',
-                        username: 'test_user',
-                        phone: session.phone,
-                        isBot: false
-                    };
-                    
-                    return {
-                        success: true,
-                        user: userInfo,
-                        session: session
-                    };
-                }
-                return { success: false, error: 'Session not found' };
-            },
-            
-            cleanup: () => {
-                console.log('Fallback telegram manager cleanup');
-                fallbackTelegram.sessions = [];
-            }
-        };
-        
-        return fallbackTelegram;
-    }
-    
-    // Create fallback terminal manager
-    createFallbackTerminalManager() {
-        const fallbackTerminal = {
-            terminalOutput: null,
-            commandInput: null,
-            commandHistory: [],
-            historyIndex: -1,
-            
-            setTerminalElements: (output, input) => {
-                fallbackTerminal.terminalOutput = output;
-                fallbackTerminal.commandInput = input;
-                
-                // Setup input event listeners
-                if (input) {
-                    input.addEventListener('keydown', (e) => {
-                        if (e.key === 'Enter') {
-                            fallbackTerminal.executeCommand();
-                        } else if (e.key === 'ArrowUp') {
-                            fallbackTerminal.navigateHistory(-1);
-                            e.preventDefault();
-                        } else if (e.key === 'ArrowDown') {
-                            fallbackTerminal.navigateHistory(1);
-                            e.preventDefault();
-                        }
-                    });
-                }
-                
-                // Add welcome message
-                if (output) {
-                    const welcomeMsg = `
-╔═══════════════════════════════════════════════════════╗
-║      TeleBot Pro Terminal (Fallback Mode)            ║
-║      Type 'help' for available commands              ║
-╚═══════════════════════════════════════════════════════╝
-`;
-                    this.appendToTerminal(welcomeMsg, 'system');
-                }
-            },
-            
-            executeCommand: async () => {
-                if (!fallbackTerminal.commandInput || !fallbackTerminal.terminalOutput) {
-                    console.error('Terminal elements not set');
-                    return { success: false };
-                }
-                
-                const command = fallbackTerminal.commandInput.value.trim();
-                if (!command) return { success: false };
-                
-                // Add to history
-                fallbackTerminal.commandHistory.unshift(command);
-                if (fallbackTerminal.commandHistory.length > 50) {
-                    fallbackTerminal.commandHistory.pop();
-                }
-                fallbackTerminal.historyIndex = -1;
-                
-                // Show command in terminal
-                fallbackTerminal.appendToTerminal(`$ ${command}`, 'command');
-                
-                // Clear input
-                fallbackTerminal.commandInput.value = '';
-                
-                // Process command
-                const result = await fallbackTerminal.processCommand(command);
-                
-                return { success: true, result: result };
-            },
-            
-            processCommand: async (command) => {
-                const cmd = command.toLowerCase().split(' ')[0];
-                const args = command.slice(cmd.length).trim();
-                
-                // Simulate processing delay
-                await new Promise(resolve => setTimeout(resolve, 200));
-                
-                switch (cmd) {
-                    case 'help':
-                        const helpText = `
-Available commands:
-• help - Show this help message
-• status - Show system status
-• bots - List all bots
-• sessions - List Telegram sessions
-• clear - Clear terminal
-• echo [text] - Echo text back
-• time - Show current time
-• date - Show current date
-• ping - Test connection
-• ls - List files (simulated)
-• pwd - Print working directory
-• whoami - Show current user
-`;
-                        fallbackTerminal.appendToTerminal(helpText, 'output');
-                        break;
-                        
-                    case 'status':
-                        const statusText = `
-System Status (Fallback Mode):
-• Authentication: ${window.authManager.isAuthenticated() ? 'Authenticated' : 'Not authenticated'}
-• Bots: ${window.botManager.getAllBots().length} total
-• Telegram Sessions: ${window.telegramManager.getAllSessions().length} total
-• API Status: Fallback mode active
-• Connection: Online
-`;
-                        fallbackTerminal.appendToTerminal(statusText, 'output');
-                        break;
-                        
-                    case 'bots':
-                        const bots = window.botManager.getAllBots();
-                        if (bots.length === 0) {
-                            fallbackTerminal.appendToTerminal('No bots configured', 'output');
-                        } else {
-                            let botList = 'Configured Bots:\n';
-                            bots.forEach(bot => {
-                                botList += `• ${bot.name} (${bot.id}) - ${bot.status}\n`;
-                            });
-                            fallbackTerminal.appendToTerminal(botList, 'output');
-                        }
-                        break;
-                        
-                    case 'sessions':
-                        const sessions = window.telegramManager.getAllSessions();
-                        if (sessions.length === 0) {
-                            fallbackTerminal.appendToTerminal('No Telegram sessions', 'output');
-                        } else {
-                            let sessionList = 'Telegram Sessions:\n';
-                            sessions.forEach(session => {
-                                sessionList += `• ${session.name} (${session.phone}) - ${session.status}\n`;
-                            });
-                            fallbackTerminal.appendToTerminal(sessionList, 'output');
-                        }
-                        break;
-                        
-                    case 'clear':
-                        if (fallbackTerminal.terminalOutput) {
-                            fallbackTerminal.terminalOutput.innerHTML = '';
-                        }
-                        break;
-                        
-                    case 'echo':
-                        fallbackTerminal.appendToTerminal(args, 'output');
-                        break;
-                        
-                    case 'time':
-                        const time = new Date().toLocaleTimeString();
-                        fallbackTerminal.appendToTerminal(`Current time: ${time}`, 'output');
-                        break;
-                        
-                    case 'date':
-                        const date = new Date().toLocaleDateString();
-                        fallbackTerminal.appendToTerminal(`Current date: ${date}`, 'output');
-                        break;
-                        
-                    case 'ping':
-                        fallbackTerminal.appendToTerminal('pong', 'output');
-                        break;
-                        
-                    case 'ls':
-                        fallbackTerminal.appendToTerminal('README.md\npackage.json\nindex.html\napp.js\nstyles.css', 'output');
-                        break;
-                        
-                    case 'pwd':
-                        fallbackTerminal.appendToTerminal('/home/telebot', 'output');
-                        break;
-                        
-                    case 'whoami':
-                        const user = window.authManager.getUser();
-                        fallbackTerminal.appendToTerminal(
-                            user ? `User: ${user.username}` : 'Not logged in', 
-                            'output'
-                        );
-                        break;
-                        
-                    default:
-                        fallbackTerminal.appendToTerminal(
-                            `Command not found: ${cmd}. Type 'help' for available commands.`,
-                            'error'
-                        );
-                }
-            },
-            
-            appendToTerminal: (text, type = 'output') => {
-                if (!fallbackTerminal.terminalOutput) return;
-                
-                const line = document.createElement('div');
-                line.className = `terminal-line terminal-${type}`;
-                line.textContent = text;
-                
-                fallbackTerminal.terminalOutput.appendChild(line);
-                
-                // Auto scroll to bottom
-                fallbackTerminal.terminalOutput.scrollTop = fallbackTerminal.terminalOutput.scrollHeight;
-            },
-            
-            navigateHistory: (direction) => {
-                if (!fallbackTerminal.commandInput) return;
-                
-                if (direction === -1) { // Up
-                    if (fallbackTerminal.historyIndex < fallbackTerminal.commandHistory.length - 1) {
-                        fallbackTerminal.historyIndex++;
-                        fallbackTerminal.commandInput.value = fallbackTerminal.commandHistory[fallbackTerminal.historyIndex];
-                    }
-                } else { // Down
-                    if (fallbackTerminal.historyIndex > 0) {
-                        fallbackTerminal.historyIndex--;
-                        fallbackTerminal.commandInput.value = fallbackTerminal.commandHistory[fallbackTerminal.historyIndex];
-                    } else if (fallbackTerminal.historyIndex === 0) {
-                        fallbackTerminal.historyIndex = -1;
-                        fallbackTerminal.commandInput.value = '';
-                    }
-                }
-            },
-            
-            clearTerminal: () => {
-                if (fallbackTerminal.terminalOutput) {
-                    fallbackTerminal.terminalOutput.innerHTML = '';
-                }
-            },
-            
-            copyOutput: () => {
-                if (!fallbackTerminal.terminalOutput) return;
-                
-                const text = fallbackTerminal.terminalOutput.textContent;
-                navigator.clipboard.writeText(text)
-                    .then(() => {
-                        // Gunakan fallback jika uiComponents tidak ada
-                        if (window.uiComponents && typeof window.uiComponents.showToast === 'function') {
-                            window.uiComponents.showToast('Terminal output copied to clipboard', 'success');
-                        } else {
-                            console.log('✅ Terminal output copied to clipboard');
-                        }
-                    })
-                    .catch(err => {
-                        console.error('Failed to copy:', err);
-                    });
-            },
-            
-            downloadOutput: () => {
-                if (!fallbackTerminal.terminalOutput) return;
-                
-                const text = fallbackTerminal.terminalOutput.textContent;
-                const blob = new Blob([text], { type: 'text/plain' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `terminal-output-${new Date().toISOString().slice(0, 10)}.txt`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                
-                // Gunakan fallback jika uiComponents tidak ada
-                if (window.uiComponents && typeof window.uiComponents.showToast === 'function') {
-                    window.uiComponents.showToast('Terminal output downloaded', 'success');
-                } else {
-                    console.log('✅ Terminal output downloaded');
-                }
-            },
-            
-            toggleFullscreen: () => {
-                const terminalContainer = document.querySelector('.terminal-container');
-                if (terminalContainer) {
-                    if (!document.fullscreenElement) {
-                        terminalContainer.requestFullscreen().catch(err => {
-                            console.error('Error attempting to enable fullscreen:', err);
-                        });
-                    } else {
-                        document.exitFullscreen();
-                    }
-                }
-            },
-            
-            showHistory: () => {
-                if (fallbackTerminal.commandHistory.length === 0) {
-                    fallbackTerminal.appendToTerminal('No command history', 'output');
-                } else {
-                    let historyText = 'Command History:\n';
-                    fallbackTerminal.commandHistory.slice(0, 20).forEach((cmd, index) => {
-                        historyText += `${index + 1}. ${cmd}\n`;
-                    });
-                    fallbackTerminal.appendToTerminal(historyText, 'output');
-                }
-            },
-            
-            showHelp: () => {
-                fallbackTerminal.processCommand('help');
-            },
-            
-            focusInput: () => {
-                if (fallbackTerminal.commandInput) {
-                    fallbackTerminal.commandInput.focus();
-                }
-            },
-            
-            cleanup: () => {
-                console.log('Fallback terminal manager cleanup');
-                fallbackTerminal.terminalOutput = null;
-                fallbackTerminal.commandInput = null;
-                fallbackTerminal.commandHistory = [];
-                fallbackTerminal.historyIndex = -1;
-            }
-        };
-        
-        return fallbackTerminal;
-    }
-    
-    // Create fallback userBot manager
-    createFallbackUserBotManager() {
-        const fallbackUserBot = {
-            autoTextJobs: new Map(),
-            
-            showUserBotInterface: () => {
-                console.log('UserBot interface (fallback mode)');
-                this.switchSection('telegram');
-                this.showToast('UserBot interface loaded in fallback mode', 'info');
-            },
-            
-            showAutoTextInterface: () => {
-                console.log('AutoText interface (fallback mode)');
-                this.switchSection('auto-text');
-                this.showToast('AutoText interface loaded in fallback mode', 'info');
-            },
-            
-            createAutoTextJob: async (config) => {
-                const jobId = 'job_' + Date.now();
-                const job = {
-                    id: jobId,
-                    name: config.name || 'AutoText Job',
-                    status: 'stopped',
-                    config: config,
-                    messagesSent: 0,
-                    errors: 0,
-                    createdAt: new Date().toISOString(),
-                    lastRun: null
-                };
-                
-                fallbackUserBot.autoTextJobs.set(jobId, job);
-                
-                return {
-                    success: true,
-                    jobId: jobId,
-                    message: 'AutoText job created (fallback mode)'
-                };
-            },
-            
-            startAutoTextJob: async (jobId) => {
-                const job = fallbackUserBot.autoTextJobs.get(jobId);
-                if (job) {
-                    job.status = 'running';
-                    job.lastRun = new Date().toISOString();
-                    
-                    // Simulate sending messages
-                    setTimeout(() => {
-                        if (job.status === 'running') {
-                            job.messagesSent += 5;
-                            console.log(`AutoText job ${jobId} sent 5 messages`);
-                        }
-                    }, 3000);
-                    
-                    return {
-                        success: true,
-                        message: 'AutoText job started (fallback mode)'
-                    };
-                }
-                return { success: false, error: 'Job not found' };
-            },
-            
-            stopAutoTextJob: async (jobId) => {
-                const job = fallbackUserBot.autoTextJobs.get(jobId);
-                if (job) {
-                    job.status = 'stopped';
-                    return {
-                        success: true,
-                        message: 'AutoText job stopped (fallback mode)'
-                    };
-                }
-                return { success: false, error: 'Job not found' };
-            },
-            
-            getAutoTextJobs: () => {
-                return Array.from(fallbackUserBot.autoTextJobs.values());
-            },
-            
-            cleanup: () => {
-                console.log('Fallback userBot manager cleanup');
-                fallbackUserBot.autoTextJobs.clear();
-            }
-        };
-        
-        return fallbackUserBot;
-    }
-    
-    // Create fallback UI components - IMPROVED VERSION
-    createFallbackUIComponents() {
-        const fallbackUI = {
-            // Toast system
-            toasts: [],
-            toastContainer: null,
-            
-            initializeAll: () => {
-                console.log('Initializing fallback UI components');
-                
-                try {
-                    // Create toast container if it doesn't exist
-                    if (!document.getElementById('toastContainer')) {
-                        const container = document.createElement('div');
-                        container.id = 'toastContainer';
-                        container.className = 'toast-container';
-                        container.style.cssText = `
-                            position: fixed;
-                            top: 20px;
-                            right: 20px;
-                            z-index: 9999;
-                            display: flex;
-                            flex-direction: column;
-                            gap: 10px;
-                            max-width: 350px;
-                        `;
-                        document.body.appendChild(container);
-                        fallbackUI.toastContainer = container;
-                        console.log('✅ Created toast container');
-                    } else {
-                        fallbackUI.toastContainer = document.getElementById('toastContainer');
-                    }
-                    
-                    // Setup tema
-                    if (!localStorage.getItem('theme')) {
-                        const prefersDark = window.matchMedia && 
-                            window.matchMedia('(prefers-color-scheme: dark)').matches;
-                        localStorage.setItem('theme', prefersDark ? 'dark' : 'light');
-                    }
-                    
-                    const theme = localStorage.getItem('theme') || 'light';
-                    document.documentElement.setAttribute('data-theme', theme);
-                    
-                    console.log('✅ Fallback UI components initialized');
-                    
-                } catch (error) {
-                    console.error('❌ Error initializing fallback UI components:', error);
-                }
-            },
-            
-            showToast: (message, type = 'info') => {
-                console.log(`[${type.toUpperCase()}] ${message}`);
-                
-                // Create toast element
-                const toast = document.createElement('div');
-                toast.className = `toast toast-${type}`;
-                toast.style.cssText = `
-                    background: ${type === 'success' ? '#10b981' : 
-                                 type === 'error' ? '#ef4444' : 
-                                 type === 'warning' ? '#f59e0b' : '#3b82f6'};
-                    color: white;
-                    padding: 12px 16px;
-                    border-radius: 8px;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                    animation: slideIn 0.3s ease;
-                `;
-                
-                // Add CSS animation jika belum ada
-                if (!document.getElementById('toastStyles')) {
-                    const style = document.createElement('style');
-                    style.id = 'toastStyles';
-                    style.textContent = `
-                        @keyframes slideIn {
-                            from { transform: translateX(100%); opacity: 0; }
-                            to { transform: translateX(0); opacity: 1; }
-                        }
-                        @keyframes slideOut {
-                            from { transform: translateX(0); opacity: 1; }
-                            to { transform: translateX(100%); opacity: 0; }
-                        }
-                        .toast-exit {
-                            animation: slideOut 0.3s ease forwards;
-                        }
-                    `;
-                    document.head.appendChild(style);
-                }
-                
-                const iconMap = {
-                    'success': 'fa-check-circle',
-                    'error': 'fa-exclamation-circle',
-                    'warning': 'fa-exclamation-triangle',
-                    'info': 'fa-info-circle'
-                };
-                
-                toast.innerHTML = `
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <i class="fas ${iconMap[type] || 'fa-info-circle'}" style="font-size: 18px;"></i>
-                        <span style="flex: 1;">${message}</span>
-                    </div>
-                    <button onclick="this.parentElement.style.animation='slideOut 0.3s ease forwards'; setTimeout(() => this.parentElement.remove(), 300)" 
-                            style="background: none; border: none; color: white; cursor: pointer; padding: 4px 8px; margin-left: 10px;">
-                        <i class="fas fa-times"></i>
+        if (bots.length === 0) {
+            botsList.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-robot"></i>
+                    <h3>No Bots Yet</h3>
+                    <p>Create your first Telegram bot to get started</p>
+                    <button class="btn btn-primary" id="createFirstBot">
+                        <i class="fas fa-plus"></i> Create Your First Bot
                     </button>
-                `;
-                
-                // Add to container
-                if (fallbackUI.toastContainer) {
-                    fallbackUI.toastContainer.appendChild(toast);
-                } else {
-                    // Fallback: append to body
-                    toast.style.position = 'fixed';
-                    toast.style.top = '20px';
-                    toast.style.right = '20px';
-                    toast.style.zIndex = '9999';
-                    document.body.appendChild(toast);
-                }
-                
-                // Auto remove after 5 seconds
-                setTimeout(() => {
-                    if (toast.parentNode) {
-                        toast.style.animation = 'slideOut 0.3s ease forwards';
-                        setTimeout(() => {
-                            if (toast.parentNode) {
-                                toast.remove();
-                            }
-                        }, 300);
-                    }
-                }, 5000);
-                
-                return toast;
-            },
+                </div>
+            `;
             
-            getToastIcon: (type) => {
-                switch (type) {
-                    case 'success': return 'check-circle';
-                    case 'error': return 'exclamation-circle';
-                    case 'warning': return 'exclamation-triangle';
-                    case 'info': return 'info-circle';
-                    default: return 'info-circle';
-                }
-            },
-            
-            toggleSidebar: () => {
-                const sidebar = document.querySelector('.sidebar');
-                const mainContent = document.querySelector('.main-content');
-                if (sidebar && mainContent) {
-                    sidebar.classList.toggle('collapsed');
-                    mainContent.classList.toggle('expanded');
-                }
-            },
-            
-            toggleTheme: () => {
-                const currentTheme = fallbackUI.getCurrentTheme();
-                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-                
-                document.documentElement.setAttribute('data-theme', newTheme);
-                localStorage.setItem('theme', newTheme);
-                
-                // Dispatch theme change event
-                document.dispatchEvent(new CustomEvent('theme-change', { detail: newTheme }));
-                
-                fallbackUI.showToast(`Theme changed to ${newTheme} mode`, 'info');
-            },
-            
-            getCurrentTheme: () => {
-                return localStorage.getItem('theme') || 
-                       (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-            },
-            
-            addNotification: (title, message, type = 'info', data = null) => {
-                console.log(`[NOTIFICATION ${type}] ${title}: ${message}`);
-                
-                const notificationsPanel = document.getElementById('notificationsPanel');
-                if (!notificationsPanel) return;
-                
-                const notification = document.createElement('div');
-                notification.className = `notification notification-${type}`;
-                notification.innerHTML = `
-                    <div class="notification-header">
-                        <span class="notification-title">${title}</span>
-                        <span class="notification-time">Just now</span>
-                    </div>
-                    <div class="notification-body">
-                        ${message}
-                    </div>
-                `;
-                
-                const notificationsList = notificationsPanel.querySelector('.notifications-list');
-                if (notificationsList) {
-                    notificationsList.insertBefore(notification, notificationsList.firstChild);
-                    
-                    // Limit to 10 notifications
-                    const allNotifications = notificationsList.querySelectorAll('.notification');
-                    if (allNotifications.length > 10) {
-                        allNotifications[allNotifications.length - 1].remove();
-                    }
-                    
-                    // Update badge
-                    const badge = document.getElementById('notificationBadge');
-                    if (badge) {
-                        const count = parseInt(badge.textContent) || 0;
-                        badge.textContent = count + 1;
-                        badge.style.display = 'flex';
-                    }
-                }
-            },
-            
-            showModal: (id, options) => {
-                console.log(`Showing modal: ${id}`, options);
-                
-                // Create modal container if it doesn't exist
-                let modalContainer = document.getElementById('modalContainer');
-                if (!modalContainer) {
-                    modalContainer = document.createElement('div');
-                    modalContainer.id = 'modalContainer';
-                    modalContainer.style.cssText = `
-                        position: fixed;
-                        top: 0;
-                        left: 0;
-                        width: 100%;
-                        height: 100%;
-                        z-index: 10000;
-                        display: none;
-                    `;
-                    document.body.appendChild(modalContainer);
-                }
-                
-                // Create modal
-                const modal = document.createElement('div');
-                modal.className = 'modal';
-                modal.id = id + 'Modal';
-                modal.style.cssText = `
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    z-index: 10001;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                `;
-                
-                const sizeClass = options.size || 'medium';
-                
-                modal.innerHTML = `
-                    <div class="modal-overlay" onclick="document.getElementById('${id}Modal').remove()" style="
-                        position: fixed;
-                        top: 0;
-                        left: 0;
-                        width: 100%;
-                        height: 100%;
-                        background: rgba(0,0,0,0.5);
-                    "></div>
-                    <div class="modal-content modal-${sizeClass}" style="
-                        background: white;
-                        border-radius: 8px;
-                        padding: 20px;
-                        max-width: ${sizeClass === 'small' ? '400px' : sizeClass === 'large' ? '800px' : '600px'};
-                        width: 90%;
-                        max-height: 80vh;
-                        overflow-y: auto;
-                        position: relative;
-                        z-index: 10002;
-                    ">
-                        <div class="modal-header" style="
-                            display: flex;
-                            justify-content: space-between;
-                            align-items: center;
-                            margin-bottom: 15px;
-                            border-bottom: 1px solid #eee;
-                            padding-bottom: 10px;
-                        ">
-                            <h3 style="margin: 0;">${options.title || 'Modal'}</h3>
-                            <button class="modal-close" onclick="document.getElementById('${id}Modal').remove()" style="
-                                background: none;
-                                border: none;
-                                font-size: 20px;
-                                cursor: pointer;
-                            ">
-                                <i class="fas fa-times"></i>
-                            </button>
-                        </div>
-                        <div class="modal-body">
-                            ${options.content || 'No content provided'}
-                        </div>
-                        ${options.footer ? `
-                        <div class="modal-footer" style="
-                            margin-top: 20px;
-                            border-top: 1px solid #eee;
-                            padding-top: 15px;
-                            display: flex;
-                            justify-content: flex-end;
-                            gap: 10px;
-                        ">
-                            ${options.footer}
-                        </div>
-                        ` : ''}
-                    </div>
-                `;
-                
-                modalContainer.innerHTML = '';
-                modalContainer.appendChild(modal);
-                modalContainer.style.display = 'block';
-                
-                return modal;
-            }
-        };
-        
-        // Initialize immediately
-        setTimeout(() => {
-            fallbackUI.initializeAll();
-        }, 100);
-        
-        return fallbackUI;
-    }
-    
-    // Setup event listeners
-    setupEventListeners() {
-        // Login form submission
-        const loginForm = document.getElementById('loginForm');
-        if (loginForm) {
-            loginForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                await this.handleLogin();
+            // Re-attach event listener
+            document.getElementById('createFirstBot')?.addEventListener('click', () => {
+                this.showCreateBotModal();
             });
-        }
-        
-        console.log('✅ Event listeners setup complete');
-    }
-    
-    // Handle login
-    async handleLogin() {
-        const username = document.getElementById('username')?.value;
-        const password = document.getElementById('password')?.value;
-        const loginBtn = document.getElementById('loginBtn');
-        const errorElement = document.getElementById('loginError');
-        
-        if (!username || !password) {
-            this.showToast('Please enter username and password', 'error');
+            
             return;
         }
         
-        // Show loading state
-        if (loginBtn) {
-            loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging in...';
-            loginBtn.disabled = true;
-        }
-        
-        if (errorElement) {
-            errorElement.style.display = 'none';
-        }
-        
-        try {
-            // Get client IP (optional in fallback mode)
-            let clientIP = null;
-            if (window.authManager && typeof window.authManager.login === 'function' && 
-                window.authManager.login.length >= 3) { // Check if login expects 3 parameters
-                try {
-                    const ipResponse = await fetch('https://api.ipify.org?format=json');
-                    const ipData = await ipResponse.json();
-                    clientIP = ipData.ip;
-                } catch (error) {
-                    console.warn('Failed to get IP:', error);
-                }
-            }
+        let html = '';
+        bots.forEach(bot => {
+            const statusClass = {
+                'running': 'success',
+                'stopped': 'danger',
+                'error': 'warning',
+                'created': 'info'
+            }[bot.status] || 'secondary';
             
-            // Attempt login
-            const result = await window.authManager.login(username, password, clientIP);
+            const statusIcon = {
+                'running': 'fa-play-circle',
+                'stopped': 'fa-stop-circle',
+                'error': 'fa-exclamation-circle',
+                'created': 'fa-info-circle'
+            }[bot.status] || 'fa-question-circle';
+            
+            html += `
+                <div class="bot-card card" data-bot-id="${bot.id}">
+                    <div class="bot-card-header">
+                        <div class="bot-card-title">
+                            <div class="bot-avatar">
+                                <i class="fas fa-robot"></i>
+                            </div>
+                            <div class="bot-info">
+                                <h4>${bot.name}</h4>
+                                <div class="bot-meta">
+                                    <span class="bot-id">${bot.id.substring(0, 8)}...</span>
+                                    <span class="bot-status status-${statusClass}">
+                                        <i class="fas ${statusIcon}"></i> ${bot.status}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bot-actions">
+                            <button class="btn-icon btn-sm" data-action="bot-details" title="Details">
+                                <i class="fas fa-info-circle"></i>
+                            </button>
+                            ${bot.status === 'running' ? `
+                                <button class="btn-icon btn-sm btn-warning" data-action="restart-bot" title="Restart">
+                                    <i class="fas fa-redo"></i>
+                                </button>
+                                <button class="btn-icon btn-sm btn-danger" data-action="stop-bot" title="Stop">
+                                    <i class="fas fa-stop"></i>
+                                </button>
+                            ` : `
+                                <button class="btn-icon btn-sm btn-success" data-action="start-bot" title="Start">
+                                    <i class="fas fa-play"></i>
+                                </button>
+                            `}
+                            <button class="btn-icon btn-sm btn-danger" data-action="delete-bot" title="Delete">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="bot-card-body">
+                        <div class="bot-stats">
+                            <div class="stat-item">
+                                <i class="fas fa-paper-plane"></i>
+                                <span>Messages: <strong>${bot.stats?.messagesSent || 0}</strong></span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-users"></i>
+                                <span>Users: <strong>${bot.stats?.users || 0}</strong></span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-clock"></i>
+                                <span>Uptime: <strong>${window.botManager?.getBotUptime(bot.id) || '0s'}</strong></span>
+                            </div>
+                        </div>
+                        
+                        <div class="bot-details">
+                            <div class="detail-item">
+                                <span class="detail-label">Token:</span>
+                                <span class="detail-value code">${bot.token}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Created:</span>
+                                <span class="detail-value">${new Date(bot.createdAt).toLocaleDateString()}</span>
+                            </div>
+                            ${bot.startedAt ? `
+                                <div class="detail-item">
+                                    <span class="detail-label">Started:</span>
+                                    <span class="detail-value">${new Date(bot.startedAt).toLocaleDateString()}</span>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        botsList.innerHTML = html;
+        
+        // Attach event listeners to bot cards
+        document.querySelectorAll('.bot-card [data-action]').forEach(button => {
+            button.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const action = e.currentTarget.getAttribute('data-action');
+                const botCard = e.currentTarget.closest('.bot-card');
+                const botId = botCard?.getAttribute('data-bot-id');
+                
+                if (botId) {
+                    await this.handleBotCardAction(action, botId);
+                }
+            });
+        });
+        
+        // Make entire bot card clickable for details
+        document.querySelectorAll('.bot-card').forEach(card => {
+            card.addEventListener('click', (e) => {
+                // Only trigger if not clicking a button
+                if (!e.target.closest('button')) {
+                    const botId = card.getAttribute('data-bot-id');
+                    this.showBotDetails(botId);
+                }
+            });
+        });
+    }
+    
+    async handleBotCardAction(action, botId) {
+        if (!window.botManager) return;
+        
+        switch(action) {
+            case 'start-bot':
+                this.showToast(`Starting bot...`, 'info');
+                const startResult = await window.botManager.startBot(botId);
+                if (startResult.success) {
+                    this.showToast('Bot started successfully', 'success');
+                    this.loadBots();
+                } else {
+                    this.showToast(`Failed to start bot: ${startResult.error}`, 'error');
+                }
+                break;
+                
+            case 'stop-bot':
+                this.showToast(`Stopping bot...`, 'info');
+                const stopResult = await window.botManager.stopBot(botId);
+                if (stopResult.success) {
+                    this.showToast('Bot stopped successfully', 'success');
+                    this.loadBots();
+                } else {
+                    this.showToast(`Failed to stop bot: ${stopResult.error}`, 'error');
+                }
+                break;
+                
+            case 'restart-bot':
+                this.showToast(`Restarting bot...`, 'info');
+                const restartResult = await window.botManager.restartBot(botId);
+                if (restartResult.success) {
+                    this.showToast('Bot restarted successfully', 'success');
+                    this.loadBots();
+                } else {
+                    this.showToast(`Failed to restart bot: ${restartResult.error}`, 'error');
+                }
+                break;
+                
+            case 'delete-bot':
+                if (confirm('Are you sure you want to delete this bot? This action cannot be undone.')) {
+                    this.showToast(`Deleting bot...`, 'info');
+                    const deleteResult = await window.botManager.deleteBot(botId);
+                    if (deleteResult.success) {
+                        this.showToast('Bot deleted successfully', 'success');
+                        this.loadBots();
+                    } else {
+                        this.showToast(`Failed to delete bot: ${deleteResult.error}`, 'error');
+                    }
+                }
+                break;
+                
+            case 'bot-details':
+                this.showBotDetails(botId);
+                break;
+        }
+    }
+    
+    async showBotDetails(botId) {
+        if (!window.botManager) return;
+        
+        const bot = window.botManager.getBot(botId);
+        if (!bot) return;
+        
+        // Show details section, hide list
+        const listSection = document.querySelector('.bots-list').closest('.section-block');
+        const detailsSection = document.getElementById('botDetailsSection');
+        
+        if (listSection) listSection.style.display = 'none';
+        if (detailsSection) detailsSection.style.display = 'block';
+        
+        // Load bot details
+        const detailsContent = document.getElementById('botDetails');
+        if (detailsContent) {
+            detailsContent.innerHTML = `
+                <div class="bot-details-view">
+                    <div class="detail-section">
+                        <h3><i class="fas fa-info-circle"></i> Bot Information</h3>
+                        <div class="detail-grid">
+                            <div class="detail-item">
+                                <span class="detail-label">Name:</span>
+                                <span class="detail-value">${bot.name}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">ID:</span>
+                                <span class="detail-value code">${bot.id}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Status:</span>
+                                <span class="detail-value status-${bot.status}">${bot.status}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Token:</span>
+                                <span class="detail-value code">${bot.token}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Created:</span>
+                                <span class="detail-value">${new Date(bot.createdAt).toLocaleString()}</span>
+                            </div>
+                            ${bot.startedAt ? `
+                                <div class="detail-item">
+                                    <span class="detail-label">Started:</span>
+                                    <span class="detail-value">${new Date(bot.startedAt).toLocaleString()}</span>
+                                </div>
+                            ` : ''}
+                            ${bot.stoppedAt ? `
+                                <div class="detail-item">
+                                    <span class="detail-label">Stopped:</span>
+                                    <span class="detail-value">${new Date(bot.stoppedAt).toLocaleString()}</span>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                    
+                    <div class="detail-section">
+                        <h3><i class="fas fa-chart-bar"></i> Statistics</h3>
+                        <div class="detail-grid">
+                            <div class="detail-item">
+                                <span class="detail-label">Messages Sent:</span>
+                                <span class="detail-value">${bot.stats?.messagesSent || 0}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Commands Received:</span>
+                                <span class="detail-value">${bot.stats?.commandsReceived || 0}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Errors:</span>
+                                <span class="detail-value">${bot.stats?.errors || 0}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Uptime:</span>
+                                <span class="detail-value">${window.botManager.getBotUptime(bot.id)}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-section">
+                        <h3><i class="fas fa-cog"></i> Settings</h3>
+                        <div class="detail-grid">
+                            <div class="detail-item">
+                                <span class="detail-label">Auto Start:</span>
+                                <span class="detail-value">${bot.settings?.autoStart ? 'Yes' : 'No'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Auto Restart:</span>
+                                <span class="detail-value">${bot.settings?.autoRestart ? 'Yes' : 'No'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Log Messages:</span>
+                                <span class="detail-value">${bot.settings?.logMessages ? 'Yes' : 'No'}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    ${bot.botInfo ? `
+                        <div class="detail-section">
+                            <h3><i class="fas fa-robot"></i> Bot Information from Telegram</h3>
+                            <div class="detail-grid">
+                                <div class="detail-item">
+                                    <span class="detail-label">Username:</span>
+                                    <span class="detail-value">@${bot.botInfo.username}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">First Name:</span>
+                                    <span class="detail-value">${bot.botInfo.first_name}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">ID:</span>
+                                    <span class="detail-value">${bot.botInfo.id}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Can Join Groups:</span>
+                                    <span class="detail-value">${bot.botInfo.can_join_groups ? 'Yes' : 'No'}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Can Read Messages:</span>
+                                    <span class="detail-value">${bot.botInfo.can_read_all_group_messages ? 'Yes' : 'No'}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Supports Inline:</span>
+                                    <span class="detail-value">${bot.botInfo.supports_inline_queries ? 'Yes' : 'No'}</span>
+                                </div>
+                            </div>
+                        </div>
+                    ` : ''}
+                    
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" id="closeBotDetails">Close</button>
+                        ${bot.status === 'running' ? `
+                            <button class="btn btn-warning" id="restartBotBtn" data-bot-id="${bot.id}">
+                                <i class="fas fa-redo"></i> Restart
+                            </button>
+                            <button class="btn btn-danger" id="stopBotBtn" data-bot-id="${bot.id}">
+                                <i class="fas fa-stop"></i> Stop
+                            </button>
+                        ` : `
+                            <button class="btn btn-success" id="startBotBtn" data-bot-id="${bot.id}">
+                                <i class="fas fa-play"></i> Start
+                            </button>
+                        `}
+                        <button class="btn btn-danger" id="deleteBotBtn" data-bot-id="${bot.id}">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            // Add event listeners to buttons
+            document.getElementById('closeBotDetails')?.addEventListener('click', () => {
+                this.showBotList();
+            });
+            
+            document.getElementById('startBotBtn')?.addEventListener('click', async () => {
+                await this.handleBotCardAction('start-bot', botId);
+                this.showBotDetails(botId); // Refresh details
+            });
+            
+            document.getElementById('stopBotBtn')?.addEventListener('click', async () => {
+                await this.handleBotCardAction('stop-bot', botId);
+                this.showBotDetails(botId); // Refresh details
+            });
+            
+            document.getElementById('restartBotBtn')?.addEventListener('click', async () => {
+                await this.handleBotCardAction('restart-bot', botId);
+                this.showBotDetails(botId); // Refresh details
+            });
+            
+            document.getElementById('deleteBotBtn')?.addEventListener('click', async () => {
+                if (confirm('Are you sure you want to delete this bot? This action cannot be undone.')) {
+                    await this.handleBotCardAction('delete-bot', botId);
+                    this.showBotList();
+                }
+            });
+        }
+    }
+    
+    showBotList() {
+        const listSection = document.querySelector('.bots-list')?.closest('.section-block');
+        const detailsSection = document.getElementById('botDetailsSection');
+        
+        if (listSection) listSection.style.display = 'block';
+        if (detailsSection) detailsSection.style.display = 'none';
+    }
+    
+    showCreateBotModal() {
+        this.showModal('createBot', {
+            title: 'Create New Bot',
+            size: 'medium',
+            content: `
+                <form id="createBotForm">
+                    <div class="form-group">
+                        <label class="form-label">Bot Name</label>
+                        <input type="text" id="botName" class="form-input" 
+                               placeholder="Enter bot name" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Bot Token</label>
+                        <input type="text" id="botToken" class="form-input" 
+                               placeholder="Enter bot token (starts with bot)" required>
+                        <small class="form-help">
+                            Get token from <a href="https://t.me/BotFather" target="_blank">@BotFather</a>
+                        </small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Description (Optional)</label>
+                        <textarea id="botDescription" class="form-input" 
+                                  placeholder="Enter bot description" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <div class="form-check">
+                            <input type="checkbox" id="autoStartBot" checked>
+                            <label for="autoStartBot">Start bot automatically after creation</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" id="saveBotConfig" checked>
+                            <label for="saveBotConfig">Save configuration</label>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <small>The bot will be registered with Telegram and available for use.</small>
+                    </div>
+                </form>
+            `,
+            footer: `
+                <button type="button" class="btn btn-secondary" data-action="close">Cancel</button>
+                <button type="button" class="btn btn-success" id="createBotSubmit">
+                    <i class="fas fa-plus"></i> Create Bot
+                </button>
+            `
+        });
+        
+        // Add submit handler
+        document.getElementById('createBotSubmit')?.addEventListener('click', async () => {
+            await this.handleCreateBot();
+        });
+    }
+    
+    async handleCreateBot() {
+        const name = document.getElementById('botName')?.value;
+        const token = document.getElementById('botToken')?.value;
+        const description = document.getElementById('botDescription')?.value;
+        const autoStart = document.getElementById('autoStartBot')?.checked;
+        
+        if (!name || !token) {
+            this.showToast('Please fill all required fields', 'error');
+            return;
+        }
+        
+        // Validate token
+        if (!token.startsWith('bot')) {
+            this.showToast('Token must start with "bot"', 'error');
+            return;
+        }
+        
+        this.showToast('Creating bot...', 'info');
+        
+        if (window.botManager) {
+            const result = await window.botManager.createBot(token, name, description);
             
             if (result.success) {
-                // Login successful
-                this.showToast('Login successful!', 'success');
+                this.showToast('Bot created successfully!', 'success');
+                this.hideModal('createBotModal');
                 
-                // Hide login screen, show main panel
-                this.showMainPanel();
-                
-                // Switch to dashboard
-                this.switchSection('dashboard');
-                
-                // Update UI
-                this.updateUserInfo();
-                this.updateSystemStats();
-                this.updateBotStatus();
-                
-                // Add login notification
-                if (window.uiComponents && typeof window.uiComponents.addNotification === 'function') {
-                    window.uiComponents.addNotification(
-                        'Login Successful',
-                        `User ${username} logged in${clientIP ? ` from ${clientIP}` : ''}`,
-                        'success',
-                        { username, ip: clientIP }
-                    );
+                // Auto-start if selected
+                if (autoStart && result.botId) {
+                    await window.botManager.startBot(result.botId);
+                    this.showToast('Bot started successfully', 'success');
                 }
                 
+                // Refresh bot list
+                this.loadBots();
             } else {
-                // Login failed
-                if (errorElement) {
-                    document.getElementById('errorMessage').textContent = result.error;
-                    errorElement.style.display = 'block';
-                }
-                this.showToast(`Login failed: ${result.error}`, 'error');
+                this.showToast(`Failed to create bot: ${result.error}`, 'error');
             }
-        } catch (error) {
-            console.error('Login error:', error);
-            if (errorElement) {
-                document.getElementById('errorMessage').textContent = 'Network error. Please check your connection.';
-                errorElement.style.display = 'block';
-            }
-            this.showToast('Network error. Please check your connection.', 'error');
-        } finally {
-            // Reset button state
-            if (loginBtn) {
-                loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login';
-                loginBtn.disabled = false;
-            }
-        }
-    }
-    
-    // Show main panel
-    showMainPanel() {
-        const loginScreen = document.getElementById('loginScreen');
-        const mainPanel = document.getElementById('mainPanel');
-        
-        if (loginScreen) loginScreen.style.display = 'none';
-        if (mainPanel) mainPanel.style.display = 'flex';
-        
-        // Update theme icon
-        this.updateThemeIcon();
-        
-        // Apply theme from localStorage
-        const savedTheme = localStorage.getItem('theme');
-        if (savedTheme) {
-            document.documentElement.setAttribute('data-theme', savedTheme);
-        }
-        
-        // Focus on first interactive element
-        setTimeout(() => {
-            const firstInteractive = document.querySelector('.nav-link.active, .section-header button');
-            if (firstInteractive) {
-                firstInteractive.focus();
-            }
-        }, 100);
-    }
-    
-    // Helper method untuk showToast
-    showToast(message, type = 'info') {
-        // Gunakan uiComponents jika ada
-        if (window.uiComponents && typeof window.uiComponents.showToast === 'function') {
-            window.uiComponents.showToast(message, type);
         } else {
-            // Fallback: log ke console
-            console.log(`[${type.toUpperCase()}] ${message}`);
+            this.showToast('Bot manager not available', 'error');
         }
     }
     
-    // Helper method untuk emit event
-    emitEvent(eventName, data = null) {
-        const event = new CustomEvent(eventName, { detail: data });
-        document.dispatchEvent(event);
+    handleBotAction(action) {
+        // Handle bot control quick actions
+        switch(action) {
+            case 'start-selected':
+                this.showToast('Starting selected bots...', 'info');
+                // Implementation would go here
+                break;
+                
+            case 'restart-selected':
+                this.showToast('Restarting selected bots...', 'info');
+                // Implementation would go here
+                break;
+                
+            case 'stop-selected':
+                this.showToast('Stopping selected bots...', 'info');
+                // Implementation would go here
+                break;
+                
+            case 'send-message':
+                this.showToast('Send message feature coming soon!', 'info');
+                break;
+                
+            case 'view-logs':
+                this.showToast('View logs feature coming soon!', 'info');
+                break;
+        }
     }
     
-    // Tambahkan method-method yang dibutuhkan (dummy implementation)
-    switchSection(section) {
-        this.currentSection = section;
-        console.log(`Switched to section: ${section}`);
+    filterBots(searchTerm = '', filter = 'all') {
+        const botCards = document.querySelectorAll('.bot-card');
+        const lowerSearch = searchTerm.toLowerCase();
+        
+        botCards.forEach(card => {
+            const botId = card.getAttribute('data-bot-id');
+            const bot = window.botManager?.getBot(botId);
+            
+            if (!bot) {
+                card.style.display = 'none';
+                return;
+            }
+            
+            // Apply search filter
+            const matchesSearch = !searchTerm || 
+                bot.name.toLowerCase().includes(lowerSearch) ||
+                bot.description?.toLowerCase().includes(lowerSearch) ||
+                bot.token.toLowerCase().includes(lowerSearch);
+            
+            // Apply status filter
+            const matchesStatus = filter === 'all' || bot.status === filter;
+            
+            card.style.display = matchesSearch && matchesStatus ? 'block' : 'none';
+        });
     }
     
-    updateUserInfo() {
-        console.log('Updating user info...');
+    loadDynamicSection(sectionId) {
+        const dynamicContent = document.getElementById('dynamicContent');
+        if (!dynamicContent) return;
+        
+        // Load content based on section
+        switch(sectionId) {
+            case 'telegram':
+                if (window.userBotManager) {
+                    window.userBotManager.showUserBotInterface();
+                } else {
+                    dynamicContent.innerHTML = `
+                        <div class="error-state">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <h3>User Bot Manager Not Available</h3>
+                            <p>The User Bot Manager is not loaded. Please check the console for errors.</p>
+                        </div>
+                    `;
+                }
+                break;
+                
+            case 'auto-text':
+                if (window.userBotManager) {
+                    window.userBotManager.showAutoTextInterface();
+                } else {
+                    dynamicContent.innerHTML = `
+                        <div class="error-state">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <h3>Auto Text Manager Not Available</h3>
+                            <p>The Auto Text Manager is not loaded. Please check the console for errors.</p>
+                        </div>
+                    `;
+                }
+                break;
+                
+            default:
+                dynamicContent.innerHTML = `
+                    <div class="coming-soon">
+                        <i class="fas fa-tools"></i>
+                        <h3>Coming Soon</h3>
+                        <p>The ${sectionId} section is under development.</p>
+                    </div>
+                `;
+        }
     }
     
-    updateSystemStats() {
-        console.log('Updating system stats...');
+    // Toast notifications
+    showToast(message, type = 'info', duration = 5000) {
+        const container = document.getElementById('toastContainer');
+        if (!container) {
+            console.log(`[${type.toUpperCase()}] ${message}`);
+            return;
+        }
+        
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.style.cssText = `
+            background: ${type === 'success' ? '#10b981' : 
+                         type === 'error' ? '#ef4444' : 
+                         type === 'warning' ? '#f59e0b' : '#3b82f6'};
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            animation: slideIn 0.3s ease;
+            max-width: 350px;
+        `;
+        
+        const iconMap = {
+            'success': 'fa-check-circle',
+            'error': 'fa-exclamation-circle',
+            'warning': 'fa-exclamation-triangle',
+            'info': 'fa-info-circle'
+        };
+        
+        toast.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <i class="fas ${iconMap[type] || 'fa-info-circle'}" style="font-size: 18px;"></i>
+                <span style="flex: 1;">${message}</span>
+            </div>
+            <button onclick="this.parentElement.remove()" 
+                    style="background: none; border: none; color: white; cursor: pointer; padding: 4px 8px; margin-left: 10px;">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+        
+        container.appendChild(toast);
+        
+        // Auto remove after duration
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.style.animation = 'slideOut 0.3s ease forwards';
+                setTimeout(() => {
+                    if (toast.parentNode) {
+                        toast.remove();
+                    }
+                }, 300);
+            }
+        }, duration);
+        
+        return toast;
     }
     
-    updateBotStatus() {
-        console.log('Updating bot status...');
+    // Modal system
+    showModal(id, options = {}) {
+        const container = document.getElementById('modalContainer');
+        if (!container) return;
+        
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.id = id + 'Modal';
+        
+        const sizeClass = options.size || 'medium';
+        const sizeStyles = {
+            'small': 'max-width: 400px;',
+            'medium': 'max-width: 600px;',
+            'large': 'max-width: 800px;',
+            'xlarge': 'max-width: 95%; max-height: 95vh;'
+        };
+        
+        modal.innerHTML = `
+            <div class="modal-overlay" onclick="window.uiComponents.hideModal('${id}')"></div>
+            <div class="modal-content modal-${sizeClass}" style="${sizeStyles[sizeClass] || ''}">
+                <div class="modal-header">
+                    <h3>${options.title || 'Modal'}</h3>
+                    <button class="modal-close" onclick="window.uiComponents.hideModal('${id}')">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    ${options.content || ''}
+                </div>
+                ${options.footer ? `
+                <div class="modal-footer">
+                    ${options.footer}
+                </div>
+                ` : ''}
+            </div>
+        `;
+        
+        container.innerHTML = '';
+        container.appendChild(modal);
+        container.style.display = 'block';
+        
+        // Store modal reference
+        this.modals.set(id, modal);
+        
+        // Add event listeners to footer buttons
+        setTimeout(() => {
+            modal.querySelectorAll('[data-action]').forEach(button => {
+                const action = button.getAttribute('data-action');
+                if (action === 'close') {
+                    button.addEventListener('click', () => {
+                        this.hideModal(id);
+                    });
+                }
+            });
+        }, 10);
+        
+        return modal;
     }
     
-    updateThemeIcon() {
-        console.log('Updating theme icon...');
+    hideModal(id) {
+        const container = document.getElementById('modalContainer');
+        if (container) {
+            container.style.display = 'none';
+            container.innerHTML = '';
+        }
+        this.modals.delete(id);
     }
     
-    setupSessionTimer() {
-        console.log('Setting up session timer...');
+    // Theme management
+    toggleTheme() {
+        this.currentTheme = this.currentTheme === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', this.currentTheme);
+        localStorage.setItem('theme', this.currentTheme);
+        
+        const icon = document.querySelector('#themeToggle i');
+        if (icon) {
+            icon.className = this.currentTheme === 'dark' ? 'fas fa-moon' : 'fas fa-sun';
+        }
+        
+        this.showToast(`Switched to ${this.currentTheme} theme`, 'info');
     }
     
-    setupPeriodicUpdates() {
-        console.log('Setting up periodic updates...');
+    // Sidebar management
+    toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const mainContent = document.querySelector('.main-content');
+        
+        if (sidebar && mainContent) {
+            this.sidebarCollapsed = !this.sidebarCollapsed;
+            sidebar.classList.toggle('collapsed', this.sidebarCollapsed);
+            mainContent.classList.toggle('expanded', this.sidebarCollapsed);
+        }
     }
     
-    checkAPIStatus() {
-        console.log('Checking API status...');
+    // Notifications
+    toggleNotifications() {
+        const panel = document.getElementById('notificationsPanel');
+        if (panel) {
+            panel.classList.toggle('active');
+        }
+    }
+    
+    hideNotifications() {
+        const panel = document.getElementById('notificationsPanel');
+        if (panel) {
+            panel.classList.remove('active');
+        }
+    }
+    
+    addNotification(title, message, type = 'info') {
+        const list = document.getElementById('notificationsList');
+        if (!list) return;
+        
+        const notification = document.createElement('div');
+        notification.className = `notification-item notification-${type}`;
+        notification.innerHTML = `
+            <div class="notification-icon">
+                <i class="fas fa-${this.getNotificationIcon(type)}"></i>
+            </div>
+            <div class="notification-content">
+                <div class="notification-title">${title}</div>
+                <div class="notification-message">${message}</div>
+                <div class="notification-time">Just now</div>
+            </div>
+        `;
+        
+        list.insertBefore(notification, list.firstChild);
+        
+        // Update badge
+        const badge = document.getElementById('notificationCount');
+        if (badge) {
+            const count = parseInt(badge.textContent) || 0;
+            badge.textContent = count + 1;
+            badge.style.display = count === 0 ? 'flex' : 'flex';
+        }
+    }
+    
+    getNotificationIcon(type) {
+        switch(type) {
+            case 'success': return 'check-circle';
+            case 'error': return 'exclamation-circle';
+            case 'warning': return 'exclamation-triangle';
+            case 'info': return 'info-circle';
+            default: return 'bell';
+        }
+    }
+    
+    // Other methods
+    refreshAll() {
+        this.showToast('Refreshing all data...', 'info');
+        
+        // Refresh bots
+        if (window.botManager) {
+            this.loadBots();
+        }
+        
+        // Refresh sessions
+        if (window.telegramManager) {
+            window.telegramManager.getAllSessions().forEach(session => {
+                window.telegramManager.getSessionStatus(session.sessionId);
+            });
+        }
+        
+        // Update dashboard stats
+        this.updateDashboardStats();
+    }
+    
+    updateDashboardStats() {
+        // Update bot count
+        if (window.botManager) {
+            const bots = window.botManager.getAllBots();
+            const runningBots = bots.filter(b => b.status === 'running').length;
+            
+            const totalBotsEl = document.getElementById('totalBots');
+            const botStatusEl = document.getElementById('botStatus');
+            
+            if (totalBotsEl) totalBotsEl.textContent = bots.length;
+            if (botStatusEl) botStatusEl.textContent = `${runningBots} running`;
+            
+            // Update header
+            const headerBotsEl = document.getElementById('headerBotsCount');
+            if (headerBotsEl) headerBotsEl.textContent = bots.length;
+        }
+        
+        // Update Telegram sessions count
+        if (window.telegramManager) {
+            const sessions = window.telegramManager.getAllSessions();
+            const connectedSessions = sessions.filter(s => s.status === 'connected').length;
+            
+            const userbotBadge = document.getElementById('userbotStatusBadge');
+            if (userbotBadge) userbotBadge.textContent = connectedSessions;
+        }
+        
+        // Update auto-text jobs count
+        if (window.userBotManager) {
+            const jobs = window.userBotManager.autoTextJobs?.size || 0;
+            const autoTextBadge = document.getElementById('autoTextStatusBadge');
+            if (autoTextBadge) autoTextBadge.textContent = jobs;
+        }
+    }
+    
+    handleLogout() {
+        if (confirm('Are you sure you want to logout?')) {
+            // Clear auth
+            if (window.authManager) {
+                window.authManager.logout();
+            }
+            
+            // Show login screen
+            const loginScreen = document.getElementById('loginScreen');
+            const mainPanel = document.getElementById('mainPanel');
+            
+            if (loginScreen) loginScreen.style.display = 'block';
+            if (mainPanel) mainPanel.style.display = 'none';
+            
+            // Reset form
+            const loginForm = document.getElementById('loginForm');
+            if (loginForm) loginForm.reset();
+            
+            this.showToast('Logged out successfully', 'info');
+        }
+    }
+    
+    showSettings() {
+        this.showModal('settings', {
+            title: 'Settings',
+            size: 'medium',
+            content: `
+                <div class="settings-form">
+                    <div class="form-group">
+                        <label class="form-label">Theme</label>
+                        <select id="themeSelect" class="form-select">
+                            <option value="dark" ${this.currentTheme === 'dark' ? 'selected' : ''}>Dark</option>
+                            <option value="light" ${this.currentTheme === 'light' ? 'selected' : ''}>Light</option>
+                            <option value="auto">Auto (System)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Notifications</label>
+                        <div class="form-check">
+                            <input type="checkbox" id="enableNotifications" checked>
+                            <label for="enableNotifications">Enable desktop notifications</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" id="enableSounds">
+                            <label for="enableSounds">Enable notification sounds</label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Auto Refresh Interval</label>
+                        <select id="refreshInterval" class="form-select">
+                            <option value="30">30 seconds</option>
+                            <option value="60" selected>1 minute</option>
+                            <option value="300">5 minutes</option>
+                            <option value="600">10 minutes</option>
+                            <option value="0">Disabled</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Session Timeout</label>
+                        <select id="sessionTimeout" class="form-select">
+                            <option value="15">15 minutes</option>
+                            <option value="30" selected>30 minutes</option>
+                            <option value="60">1 hour</option>
+                            <option value="1440">24 hours</option>
+                            <option value="0">Never</option>
+                        </select>
+                    </div>
+                </div>
+            `,
+            footer: `
+                <button class="btn btn-secondary" data-action="close">Cancel</button>
+                <button class="btn btn-primary" id="saveSettings">Save Settings</button>
+            `
+        });
+        
+        document.getElementById('saveSettings')?.addEventListener('click', () => {
+            this.saveSettings();
+            this.hideModal('settings');
+        });
+    }
+    
+    saveSettings() {
+        const theme = document.getElementById('themeSelect')?.value;
+        if (theme && theme !== 'auto') {
+            this.currentTheme = theme;
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+        }
+        
+        this.showToast('Settings saved', 'success');
+    }
+    
+    // Event system
+    eventListeners = {};
+    
+    on(event, callback) {
+        if (!this.eventListeners[event]) {
+            this.eventListeners[event] = [];
+        }
+        this.eventListeners[event].push(callback);
+    }
+    
+    off(event, callback) {
+        if (this.eventListeners[event]) {
+            this.eventListeners[event] = this.eventListeners[event].filter(cb => cb !== callback);
+        }
+    }
+    
+    emitEvent(event, data) {
+        if (this.eventListeners[event]) {
+            this.eventListeners[event].forEach(callback => {
+                try {
+                    callback(data);
+                } catch (error) {
+                    console.error(`Error in ${event} event handler:`, error);
+                }
+            });
+        }
+        
+        // Also dispatch DOM event
+        document.dispatchEvent(new CustomEvent(event, { detail: data }));
     }
 }
 
 // Create global instance
-window.app = new TeleBotApp();
+window.uiComponents = new UIComponents();
+
+// Make sure app can access it
+if (window.app && !window.app.uiComponents) {
+    window.app.uiComponents = window.uiComponents;
+}
 
 // Export for module usage
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = TeleBotApp;
+    module.exports = UIComponents;
 }
