@@ -169,32 +169,38 @@ class TelegramManager {
             
             const data = await response.json();
             
+            // SELALU simpan session sementara, bahkan jika butuh verifikasi
+            const session = {
+                sessionId: data.sessionId,
+                apiId: apiId,
+                apiHash: this.maskApiHash(apiHash),
+                phoneNumber: phoneNumber,
+                status: 'verifying', // Status khusus untuk verifikasi
+                createdAt: new Date().toISOString(),
+                lastActivity: new Date().toISOString(),
+                stats: {
+                    messagesSent: 0,
+                    messagesReceived: 0,
+                    dialogsLoaded: 0
+                }
+            };
+            
+            this.userSessions.set(data.sessionId, session);
+            this.saveSessionsToStorage();
+            
             if (data.requiresVerification) {
                 // Need verification code
                 return {
                     success: true,
                     requiresVerification: true,
                     sessionId: data.sessionId,
-                    message: data.message
+                    message: data.message || 'Please enter verification code'
                 };
-            } else if (data.success) {
-                // Connected successfully
-                const session = {
-                    sessionId: data.sessionId,
-                    apiId: apiId,
-                    apiHash: this.maskApiHash(apiHash),
-                    phoneNumber: phoneNumber,
-                    user: data.user,
-                    status: 'connected',
-                    connectedAt: new Date().toISOString(),
-                    lastActivity: new Date().toISOString(),
-                    stats: {
-                        messagesSent: 0,
-                        messagesReceived: 0,
-                        dialogsLoaded: 0
-                    }
-                };
-                
+            } else {
+                // Langsung terkoneksi (rare case)
+                session.status = 'connected';
+                session.user = data.user;
+                session.verifiedAt = new Date().toISOString();
                 this.userSessions.set(data.sessionId, session);
                 this.saveSessionsToStorage();
                 
@@ -211,12 +217,6 @@ class TelegramManager {
                     user: data.user,
                     message: 'Connected successfully'
                 };
-            } else {
-                console.error('Connection failed:', data.error);
-                return {
-                    success: false,
-                    error: data.error || 'Connection failed'
-                };
             }
         } catch (error) {
             console.error('Connection error:', error);
@@ -230,9 +230,15 @@ class TelegramManager {
     // Verify connection with code
     async verifyConnection(sessionId, verificationCode) {
         try {
+            console.log(`🔐 Verifying session: ${sessionId} with code: ${verificationCode}`);
+            
             // Validate authentication
             if (!this.validateAuthentication()) {
                 throw new Error('Authentication required. Please login first.');
+            }
+            
+            if (!verificationCode || verificationCode.length !== 5) {
+                throw new Error('Verification code must be 5 digits');
             }
             
             const session = this.userSessions.get(sessionId);
@@ -255,12 +261,15 @@ class TelegramManager {
                 })
             });
             
+            console.log('📥 Verification response status:', response.status);
+            
             if (!response.ok) {
                 const errorText = await response.text();
                 throw new Error(`HTTP ${response.status}: ${errorText}`);
             }
             
             const data = await response.json();
+            console.log('📥 Verification response data:', data);
             
             if (response.ok && data.success) {
                 // Update session
@@ -283,17 +292,17 @@ class TelegramManager {
                     success: true,
                     sessionId: sessionId,
                     user: data.user,
-                    message: 'Verified successfully'
+                    message: 'Verified and connected successfully!'
                 };
             } else {
-                console.error('Verification failed:', data.error);
+                console.error('❌ Verification failed:', data.error);
                 return {
                     success: false,
                     error: data.error || 'Verification failed'
                 };
             }
         } catch (error) {
-            console.error('Verification error:', error);
+            console.error('❌ Verification error:', error);
             return {
                 success: false,
                 error: error.message
@@ -1068,6 +1077,7 @@ class TelegramManager {
             if (session.status === 'connected') stats.connected++;
             if (session.status === 'disconnected') stats.disconnected++;
             if (session.status === 'reconnecting') stats.reconnecting++;
+            if (session.status === 'verifying') stats.reconnecting++; // Treat verifying as reconnecting for stats
             
             stats.totalMessages += session.stats?.messagesSent || 0;
         }
