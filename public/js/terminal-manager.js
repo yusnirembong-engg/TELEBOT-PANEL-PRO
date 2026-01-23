@@ -1,6 +1,7 @@
 /**
  * TeleBot Pro v2.0.0 - Terminal Manager
  * Handles secure terminal operations and command execution
+ * FIXED VERSION - dengan error handling dan stability improvements
  */
 
 class TerminalManager {
@@ -12,6 +13,13 @@ class TerminalManager {
         this.apiBase = '/.netlify/functions';
         this.terminalOutput = null;
         this.commandInput = null;
+        this.fallbackInterval = null;
+        this.mutationObserver = null;
+        
+        // Bind event handlers
+        this.boundKeydownHandler = this.handleGlobalKeydown.bind(this);
+        this.boundInputKeydown = this.handleInputKeydown.bind(this);
+        this.boundHashChange = this.handleHashChange.bind(this);
         
         // Security settings
         this.security = {
@@ -76,14 +84,97 @@ class TerminalManager {
         };
         
         // Initialize
-        this.init();
+        this.safeInit();
     }
     
-    init() {
-        console.log('💻 Terminal Manager initialized');
-        this.loadCommandHistory();
-        this.setupEventListeners();
-        this.setupAutoComplete();
+    // Safe initialization dengan error handling
+    safeInit() {
+        try {
+            console.log('💻 Terminal Manager initializing...');
+            this.loadCommandHistory();
+            this.setupAutoComplete();
+            
+            // Setup event listeners setelah DOM siap
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => {
+                    this.setupEventListeners();
+                    this.initializeTerminal();
+                });
+            } else {
+                this.setupEventListeners();
+                this.initializeTerminal();
+            }
+            
+            console.log('✅ Terminal Manager initialized successfully');
+        } catch (error) {
+            console.error('❌ Terminal Manager initialization failed:', error);
+            // Coba init ulang setelah delay
+            setTimeout(() => {
+                console.log('🔄 Retrying Terminal Manager initialization...');
+                try {
+                    this.setupEventListeners();
+                    this.initializeTerminal();
+                } catch (retryError) {
+                    console.error('❌ Retry failed:', retryError);
+                }
+            }, 1000);
+        }
+    }
+    
+    // Initialize terminal elements
+    initializeTerminal() {
+        // Cari elemen terminal secara dinamis
+        this.findTerminalElements();
+        
+        // Jika tidak ditemukan, coba lagi nanti
+        if (!this.terminalOutput || !this.commandInput) {
+            console.warn('⚠️ Terminal elements not found, retrying...');
+            setTimeout(() => this.findTerminalElements(), 500);
+        }
+        
+        // Tampilkan welcome message jika output tersedia
+        if (this.terminalOutput && this.terminalOutput.children.length === 0) {
+            this.showWelcomeMessage();
+        }
+    }
+    
+    // Find terminal elements dengan multiple selectors
+    findTerminalElements() {
+        // Cari output terminal
+        if (!this.terminalOutput) {
+            this.terminalOutput = document.getElementById('terminalOutput') || 
+                                 document.querySelector('.terminal-output') ||
+                                 document.querySelector('[data-terminal-output]');
+        }
+        
+        // Cari input terminal
+        if (!this.commandInput) {
+            this.commandInput = document.getElementById('commandInput') || 
+                               document.querySelector('.terminal-input') ||
+                               document.querySelector('[data-command-input]') ||
+                               document.querySelector('input[type="text"][placeholder*="command"]');
+        }
+        
+        // Setup input listener jika ditemukan
+        if (this.commandInput) {
+            this.setupInputListener();
+        }
+    }
+    
+    // Setup input listener
+    setupInputListener() {
+        if (this.commandInput && !this.commandInput.hasListener) {
+            this.commandInput.addEventListener('keydown', this.boundInputKeydown);
+            this.commandInput.hasListener = true;
+        }
+    }
+    
+    // Handle input keydown
+    handleInputKeydown(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            this.executeCommand();
+        }
     }
     
     // Load command history from localStorage
@@ -116,38 +207,182 @@ class TerminalManager {
     // Setup event listeners
     setupEventListeners() {
         // Global keyboard shortcuts
-        document.addEventListener('keydown', (e) => {
-            // Ctrl + L to clear terminal
-            if (e.ctrlKey && e.key === 'l') {
-                e.preventDefault();
-                this.clearTerminal();
-            }
-            
-            // Ctrl + C to cancel command
-            if (e.ctrlKey && e.key === 'c' && this.isExecuting) {
-                e.preventDefault();
-                this.cancelCommand();
-            }
-            
-            // Tab for auto-completion
-            if (e.key === 'Tab' && document.activeElement === this.commandInput) {
-                e.preventDefault();
-                this.handleTabComplete();
-            }
-            
-            // Up/Down arrow for history
-            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-                this.handleHistoryNavigation(e.key);
-            }
-        });
+        document.addEventListener('keydown', this.boundKeydownHandler);
+        
+        // Hash change listener untuk section detection
+        window.addEventListener('hashchange', this.boundHashChange);
         
         // Listen for terminal section activation
-        if (window.app) {
-            window.app.on('section-change', (section) => {
-                if (section === 'terminal') {
-                    this.focusInput();
+        this.setupSectionChangeHandler();
+        
+        // Visibility change listener
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && this.isTerminalActive()) {
+                this.focusInput();
+            }
+        });
+    }
+    
+    // Handle global keydown
+    handleGlobalKeydown(e) {
+        // Ctrl + L to clear terminal
+        if (e.ctrlKey && e.key === 'l') {
+            e.preventDefault();
+            this.clearTerminal();
+            return;
+        }
+        
+        // Ctrl + C to cancel command
+        if (e.ctrlKey && e.key === 'c' && this.isExecuting) {
+            e.preventDefault();
+            this.cancelCommand();
+            return;
+        }
+        
+        // Tab for auto-completion (only if input is focused)
+        if (e.key === 'Tab' && this.commandInput && document.activeElement === this.commandInput) {
+            e.preventDefault();
+            this.handleTabComplete();
+            return;
+        }
+        
+        // Up/Down arrow for history (only if input is focused)
+        if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && 
+            this.commandInput && 
+            document.activeElement === this.commandInput) {
+            this.handleHistoryNavigation(e.key);
+        }
+    }
+    
+    // Handle hash change
+    handleHashChange() {
+        if (this.isTerminalActive()) {
+            setTimeout(() => this.focusInput(), 100);
+        }
+    }
+    
+    // Setup section change handler
+    setupSectionChangeHandler() {
+        // Coba gunakan event system jika tersedia
+        if (window.app && typeof window.app.on === 'function') {
+            try {
+                window.app.on('section-change', (section) => {
+                    if (section === 'terminal') {
+                        // Delay sedikit untuk memastikan DOM siap
+                        setTimeout(() => {
+                            this.focusInput();
+                        }, 100);
+                    }
+                });
+                console.log('✅ Using app event system for section changes');
+            } catch (error) {
+                console.warn('⚠️ Failed to setup section-change listener:', error);
+                this.setupFallbackObserver();
+            }
+        } else {
+            // Fallback jika event system tidak tersedia
+            console.log('ℹ️ Using fallback observer for section changes');
+            this.setupFallbackObserver();
+        }
+    }
+    
+    // Setup fallback observer
+    setupFallbackObserver() {
+        // Check segera
+        setTimeout(() => {
+            if (this.isTerminalActive()) {
+                this.focusInput();
+            }
+        }, 300);
+        
+        // Setup periodic check (fallback)
+        this.fallbackInterval = setInterval(() => {
+            if (this.isTerminalActive()) {
+                this.focusInput();
+                // Jika sudah fokus, kurangi interval checking
+                if (document.activeElement === this.commandInput) {
+                    clearInterval(this.fallbackInterval);
+                    this.fallbackInterval = null;
+                }
+            }
+        }, 1000);
+        
+        // Setup mutation observer
+        this.setupMutationObserver();
+    }
+    
+    // Check if terminal section is active
+    isTerminalActive() {
+        // Cara 1: Cek elemen dengan ID terminalSection
+        const terminalSection = document.getElementById('terminalSection');
+        if (terminalSection && terminalSection.classList.contains('active')) {
+            return true;
+        }
+        
+        // Cara 2: Cek URL hash
+        if (window.location.hash === '#terminal' || 
+            window.location.hash.includes('terminal')) {
+            return true;
+        }
+        
+        // Cara 3: Cek class pada body
+        if (document.body.classList.contains('terminal-active') ||
+            document.body.classList.contains('terminal-section')) {
+            return true;
+        }
+        
+        // Cara 4: Cek elemen dengan data attribute
+        const terminalEl = document.querySelector('[data-section="terminal"]');
+        if (terminalEl && terminalEl.classList.contains('active')) {
+            return true;
+        }
+        
+        // Cara 5: Cek visibility element
+        const terminalContainer = document.querySelector('.terminal-container');
+        if (terminalContainer && 
+            terminalContainer.style.display !== 'none' &&
+            terminalContainer.style.visibility !== 'hidden') {
+            return true;
+        }
+        
+        return false;
+    }
+    
+    // Setup mutation observer
+    setupMutationObserver() {
+        try {
+            const observer = new MutationObserver((mutations) => {
+                for (const mutation of mutations) {
+                    if (mutation.type === 'attributes' || mutation.type === 'childList') {
+                        if (this.isTerminalActive()) {
+                            this.focusInput();
+                        }
+                        break;
+                    }
                 }
             });
+            
+            // Observasi elemen yang mungkin berubah
+            const observeTargets = [
+                document.getElementById('terminalSection'),
+                document.getElementById('dynamicContent'),
+                document.querySelector('.main-content'),
+                document.querySelector('.content-area'),
+                document.body
+            ].filter(el => el); // Hapus null
+            
+            observeTargets.forEach(target => {
+                observer.observe(target, { 
+                    attributes: true, 
+                    attributeFilter: ['class', 'style'],
+                    childList: true, 
+                    subtree: true 
+                });
+            });
+            
+            this.mutationObserver = observer;
+        } catch (error) {
+            console.warn('⚠️ MutationObserver setup failed:', error);
         }
     }
     
@@ -170,26 +405,38 @@ class TerminalManager {
         ];
     }
     
-    // Set terminal DOM elements
+    // Set terminal DOM elements (legacy support)
     setTerminalElements(outputElement, inputElement) {
         this.terminalOutput = outputElement;
         this.commandInput = inputElement;
         
         if (this.commandInput) {
-            this.commandInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    this.executeCommand();
-                }
-            });
+            this.setupInputListener();
         }
+        
+        // Tampilkan welcome message
+        if (this.terminalOutput && this.terminalOutput.children.length === 0) {
+            this.showWelcomeMessage();
+        }
+    }
+    
+    // Show welcome message
+    showWelcomeMessage() {
+        const welcomeMessage = this.getWelcomeMessage();
+        this.addOutput(welcomeMessage, 'info');
+        this.addOutput('Type "help" for available commands', 'info');
     }
     
     // Execute a command
     async executeCommand(command = null) {
-        const cmd = command || this.commandInput?.value.trim();
+        const cmd = command || (this.commandInput ? this.commandInput.value.trim() : '');
         
-        if (!cmd || this.isExecuting) {
+        if (!cmd) {
+            return;
+        }
+        
+        if (this.isExecuting) {
+            this.addOutput('Another command is already executing', 'warning');
             return;
         }
         
@@ -278,7 +525,8 @@ class TerminalManager {
     
     // Send command to server
     async sendCommandToServer(command) {
-        if (!window.authManager || !window.authManager.isAuthenticated()) {
+        // Check authentication
+        if (!window.authManager || !window.authManager.isAuthenticated?.()) {
             return {
                 success: false,
                 error: 'Authentication required'
@@ -286,17 +534,27 @@ class TerminalManager {
         }
         
         try {
+            const headers = window.authManager.getAuthHeaders?.() || {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            };
+            
             const response = await fetch(`${this.apiBase}/terminal`, {
                 method: 'POST',
-                headers: window.authManager.getAuthHeaders(),
+                headers: headers,
                 body: JSON.stringify({
-                    command: command
+                    command: command,
+                    timestamp: new Date().toISOString()
                 })
             });
             
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
             const data = await response.json();
             
-            if (response.ok && data.success) {
+            if (data.success) {
                 return {
                     success: true,
                     output: data.output,
@@ -309,6 +567,7 @@ class TerminalManager {
                 };
             }
         } catch (error) {
+            console.error('Command fetch error:', error);
             return {
                 success: false,
                 error: 'Network error: ' + error.message
@@ -391,7 +650,7 @@ class TerminalManager {
         }
         
         // Move cursor to end
-        this.commandInput.focus();
+        this.focusInput();
         this.commandInput.setSelectionRange(
             this.commandInput.value.length,
             this.commandInput.value.length
@@ -427,34 +686,44 @@ class TerminalManager {
     
     // Add output to terminal
     addOutput(text, type = 'output') {
-        if (!this.terminalOutput) return;
-        
-        const line = document.createElement('div');
-        line.className = `terminal-line terminal-${type}`;
-        
-        // Format based on type
-        switch (type) {
-            case 'command':
-                line.innerHTML = `<span class="prompt">$</span> <span class="command">${this.escapeHtml(text)}</span>`;
-                break;
-            case 'output':
-                line.textContent = text;
-                break;
-            case 'error':
-                line.innerHTML = `<span class="error">${this.escapeHtml(text)}</span>`;
-                break;
-            case 'info':
-                line.innerHTML = `<span class="info">${this.escapeHtml(text)}</span>`;
-                break;
-            case 'success':
-                line.innerHTML = `<span class="success">${this.escapeHtml(text)}</span>`;
-                break;
-            default:
-                line.textContent = text;
+        if (!this.terminalOutput) {
+            console.warn('⚠️ Terminal output element not found');
+            return;
         }
         
-        this.terminalOutput.appendChild(line);
-        this.scrollToBottom();
+        try {
+            const line = document.createElement('div');
+            line.className = `terminal-line terminal-${type}`;
+            
+            // Format berdasarkan tipe
+            switch (type) {
+                case 'command':
+                    line.innerHTML = `<span class="prompt">$</span> <span class="command">${this.escapeHtml(text)}</span>`;
+                    break;
+                case 'output':
+                    line.textContent = text;
+                    break;
+                case 'error':
+                    line.innerHTML = `<span class="error">${this.escapeHtml(text)}</span>`;
+                    break;
+                case 'info':
+                    line.innerHTML = `<span class="info">${this.escapeHtml(text)}</span>`;
+                    break;
+                case 'success':
+                    line.innerHTML = `<span class="success">${this.escapeHtml(text)}</span>`;
+                    break;
+                case 'warning':
+                    line.innerHTML = `<span class="warning">${this.escapeHtml(text)}</span>`;
+                    break;
+                default:
+                    line.textContent = text;
+            }
+            
+            this.terminalOutput.appendChild(line);
+            this.scrollToBottom();
+        } catch (error) {
+            console.error('Failed to add output:', error);
+        }
     }
     
     // Clear terminal
@@ -556,11 +825,11 @@ class TerminalManager {
         
         // Check authentication
         if (window.authManager) {
-            const isAuth = window.authManager.isAuthenticated();
+            const isAuth = window.authManager.isAuthenticated?.() || false;
             this.addOutput(`  Authenticated: ${isAuth ? 'Yes' : 'No'}`, 'info');
             
             if (isAuth) {
-                const session = window.authManager.getSessionInfo();
+                const session = window.authManager.getSessionInfo?.();
                 this.addOutput(`  Session expires in: ${session?.timeLeftFormatted || 'Unknown'}`, 'info');
             }
         }
@@ -576,7 +845,7 @@ class TerminalManager {
         this.addOutput('Bot Status:', 'info');
         
         try {
-            const bots = window.botManager.getAllBots();
+            const bots = window.botManager.getAllBots?.() || [];
             
             if (bots.length === 0) {
                 this.addOutput('  No bots configured', 'info');
@@ -586,10 +855,12 @@ class TerminalManager {
             bots.forEach(bot => {
                 const statusIcon = bot.status === 'running' ? '🟢' : 
                                  bot.status === 'stopped' ? '🔴' : '🟡';
-                this.addOutput(`  ${statusIcon} ${bot.name} (${bot.id})`, 'info');
+                this.addOutput(`  ${statusIcon} ${bot.name || bot.id}`, 'info');
                 this.addOutput(`      Status: ${bot.status}`, 'info');
-                this.addOutput(`      Messages: ${bot.stats.messagesSent || 0}`, 'info');
-                this.addOutput(`      Uptime: ${window.botManager.getBotUptime(bot.id)}`, 'info');
+                this.addOutput(`      Messages: ${bot.stats?.messagesSent || 0}`, 'info');
+                if (window.botManager.getBotUptime) {
+                    this.addOutput(`      Uptime: ${window.botManager.getBotUptime(bot.id)}`, 'info');
+                }
             });
         } catch (error) {
             this.addOutput(`Error: ${error.message}`, 'error');
@@ -609,9 +880,14 @@ class TerminalManager {
     
     // Update terminal status
     updateStatus(status) {
-        const statusElement = document.getElementById('terminalStatus');
-        if (statusElement) {
-            statusElement.textContent = status;
+        try {
+            const statusElement = document.getElementById('terminalStatus') || 
+                                 document.querySelector('.terminal-status');
+            if (statusElement) {
+                statusElement.textContent = status;
+            }
+        } catch (error) {
+            console.warn('Failed to update status:', error);
         }
     }
     
@@ -628,22 +904,44 @@ class TerminalManager {
     // Focus input field
     focusInput() {
         if (this.commandInput) {
-            this.commandInput.focus();
+            try {
+                this.commandInput.focus();
+                this.commandInput.setSelectionRange(
+                    this.commandInput.value.length,
+                    this.commandInput.value.length
+                );
+            } catch (error) {
+                console.warn('Failed to focus input:', error);
+            }
         }
     }
     
     // Scroll terminal to bottom
     scrollToBottom() {
         if (this.terminalOutput) {
-            this.terminalOutput.scrollTop = this.terminalOutput.scrollHeight;
+            try {
+                this.terminalOutput.scrollTop = this.terminalOutput.scrollHeight;
+            } catch (error) {
+                console.warn('Failed to scroll to bottom:', error);
+            }
         }
     }
     
     // Escape HTML for safe output
     escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+        try {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        } catch (error) {
+            return String(text).replace(/[&<>"']/g, char => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            })[char]);
+        }
     }
     
     // Format uptime
@@ -651,8 +949,11 @@ class TerminalManager {
         const seconds = Math.floor(ms / 1000);
         const minutes = Math.floor(seconds / 60);
         const hours = Math.floor(minutes / 60);
+        const days = Math.floor(hours / 24);
         
-        if (hours > 0) {
+        if (days > 0) {
+            return `${days}d ${hours % 24}h`;
+        } else if (hours > 0) {
             return `${hours}h ${minutes % 60}m`;
         } else if (minutes > 0) {
             return `${minutes}m ${seconds % 60}s`;
@@ -663,23 +964,25 @@ class TerminalManager {
     
     // Format memory
     formatMemory(memory) {
-        if (memory === 'Unknown') return memory;
+        if (memory === 'Unknown' || memory === undefined) return 'Unknown';
         return `${memory} GB`;
     }
     
     // Log command for audit
     logCommand(command, success, error = null) {
-        const logEntry = {
-            timestamp: new Date().toISOString(),
-            command: command,
-            success: success,
-            error: error,
-            user: window.authManager?.getUser()?.username || 'unknown',
-            ip: 'client'
-        };
-        
-        // Save to localStorage
         try {
+            const logEntry = {
+                timestamp: new Date().toISOString(),
+                command: command,
+                success: success,
+                error: error,
+                user: window.authManager?.getUser?.()?.username || 
+                      localStorage.getItem('username') || 
+                      'unknown',
+                ip: 'client'
+            };
+            
+            // Save to localStorage
             const auditLog = JSON.parse(localStorage.getItem('terminal_audit_log') || '[]');
             auditLog.push(logEntry);
             
@@ -707,8 +1010,14 @@ class TerminalManager {
     
     // Clear audit log
     clearAuditLog() {
-        localStorage.removeItem('terminal_audit_log');
-        console.log('🗑️ Audit log cleared');
+        try {
+            localStorage.removeItem('terminal_audit_log');
+            console.log('🗑️ Audit log cleared');
+            return true;
+        } catch (error) {
+            console.error('Failed to clear audit log:', error);
+            return false;
+        }
     }
     
     // Export command history
@@ -736,9 +1045,11 @@ class TerminalManager {
             }
             
             // Add imported commands to history
+            let importedCount = 0;
             data.history.forEach(cmd => {
                 if (!this.commandHistory.includes(cmd)) {
                     this.commandHistory.push(cmd);
+                    importedCount++;
                 }
             });
             
@@ -746,7 +1057,7 @@ class TerminalManager {
             
             return {
                 success: true,
-                imported: data.history.length,
+                imported: importedCount,
                 total: this.commandHistory.length
             };
         } catch (error) {
@@ -761,44 +1072,58 @@ class TerminalManager {
     downloadOutput() {
         if (!this.terminalOutput) return;
         
-        const content = this.terminalOutput.textContent;
-        const blob = new Blob([content], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        
-        a.href = url;
-        a.download = `terminal-output-${new Date().toISOString().slice(0, 10)}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        this.addOutput('Output downloaded', 'success');
+        try {
+            const content = this.terminalOutput.textContent;
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            
+            a.href = url;
+            a.download = `terminal-output-${new Date().toISOString().slice(0, 10)}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            this.addOutput('Output downloaded', 'success');
+        } catch (error) {
+            this.addOutput('Failed to download: ' + error.message, 'error');
+        }
     }
     
     // Copy terminal output to clipboard
-    copyOutput() {
+    async copyOutput() {
         if (!this.terminalOutput) return;
         
-        const content = this.terminalOutput.textContent;
-        navigator.clipboard.writeText(content).then(() => {
+        try {
+            const content = this.terminalOutput.textContent;
+            await navigator.clipboard.writeText(content);
             this.addOutput('Output copied to clipboard', 'success');
-        }).catch(err => {
-            this.addOutput('Failed to copy: ' + err, 'error');
-        });
+        } catch (err) {
+            this.addOutput('Failed to copy: ' + err.message, 'error');
+        }
     }
     
     // Toggle fullscreen
     toggleFullscreen() {
-        const terminalContainer = this.terminalOutput?.closest('.terminal-container');
-        if (!terminalContainer) return;
+        const terminalContainer = this.terminalOutput?.closest('.terminal-container') ||
+                                 document.querySelector('.terminal-container');
         
-        if (!document.fullscreenElement) {
-            terminalContainer.requestFullscreen().catch(err => {
-                console.error('Failed to enter fullscreen:', err);
-            });
-        } else {
-            document.exitFullscreen();
+        if (!terminalContainer) {
+            this.addOutput('Terminal container not found', 'error');
+            return;
+        }
+        
+        try {
+            if (!document.fullscreenElement) {
+                terminalContainer.requestFullscreen();
+                this.addOutput('Entered fullscreen mode', 'info');
+            } else {
+                document.exitFullscreen();
+                this.addOutput('Exited fullscreen mode', 'info');
+            }
+        } catch (err) {
+            this.addOutput('Fullscreen error: ' + err.message, 'error');
         }
     }
     
@@ -841,7 +1166,7 @@ class TerminalManager {
         this.addOutput('Command history cleared', 'info');
     }
     
-    // Event system for terminal events
+    // Event system untuk terminal events
     eventListeners = {};
     
     on(event, callback) {
@@ -914,12 +1239,153 @@ Welcome to the secure terminal interface.
 Type a command and press Enter to begin.
         `.trim();
     }
+    
+    // Cleanup method
+    cleanup() {
+        // Hentikan interval fallback
+        if (this.fallbackInterval) {
+            clearInterval(this.fallbackInterval);
+            this.fallbackInterval = null;
+        }
+        
+        // Hentikan mutation observer
+        if (this.mutationObserver) {
+            this.mutationObserver.disconnect();
+            this.mutationObserver = null;
+        }
+        
+        // Hapus event listeners
+        document.removeEventListener('keydown', this.boundKeydownHandler);
+        window.removeEventListener('hashchange', this.boundHashChange);
+        
+        // Hapus input listener
+        if (this.commandInput && this.commandInput.hasListener) {
+            this.commandInput.removeEventListener('keydown', this.boundInputKeydown);
+            this.commandInput.hasListener = false;
+        }
+        
+        console.log('🧹 Terminal Manager cleaned up');
+    }
+    
+    // Debug info
+    debugInfo() {
+        return {
+            isInitialized: !!this.terminalOutput && !!this.commandInput,
+            elements: {
+                terminalOutput: !!this.terminalOutput,
+                commandInput: !!this.commandInput
+            },
+            settings: {
+                securityEnabled: this.security.enabled,
+                maxHistory: this.security.maxHistory,
+                allowedCommands: this.security.allowedPatterns.length
+            },
+            state: {
+                isExecuting: this.isExecuting,
+                historyLength: this.commandHistory.length,
+                historyIndex: this.historyIndex,
+                fallbackInterval: !!this.fallbackInterval,
+                mutationObserver: !!this.mutationObserver
+            },
+            dependencies: {
+                authManager: !!window.authManager,
+                botManager: !!window.botManager,
+                userBotManager: !!window.userBotManager,
+                app: !!window.app
+            }
+        };
+    }
+    
+    // Test terminal functionality
+    testTerminal() {
+        console.log('🧪 Testing terminal functionality...');
+        
+        const tests = [
+            {
+                name: 'Elements',
+                test: () => !!this.terminalOutput && !!this.commandInput,
+                message: 'Terminal elements found'
+            },
+            {
+                name: 'History',
+                test: () => Array.isArray(this.commandHistory),
+                message: 'Command history loaded'
+            },
+            {
+                name: 'Security',
+                test: () => this.security.enabled && this.security.allowedPatterns.length > 0,
+                message: 'Security enabled'
+            },
+            {
+                name: 'AutoComplete',
+                test: () => this.autoCompleteCommands && this.autoCompleteCommands.length > 0,
+                message: 'Auto-complete commands loaded'
+            }
+        ];
+        
+        const results = tests.map(test => {
+            const passed = test.test();
+            console.log(`${passed ? '✅' : '❌'} ${test.name}: ${test.message}`);
+            return { name: test.name, passed };
+        });
+        
+        const allPassed = results.every(r => r.passed);
+        console.log(allPassed ? '🎉 All tests passed!' : '⚠️ Some tests failed');
+        
+        return results;
+    }
 }
 
-// Create global instance
-window.terminalManager = new TerminalManager();
+// Static method untuk create instance dengan error handling
+TerminalManager.createInstance = function() {
+    try {
+        if (window.terminalManager) {
+            console.log('ℹ️ TerminalManager instance already exists');
+            return window.terminalManager;
+        }
+        
+        const instance = new TerminalManager();
+        window.terminalManager = instance;
+        
+        // Tambahkan cleanup pada page unload
+        window.addEventListener('beforeunload', () => {
+            if (instance.cleanup) {
+                instance.cleanup();
+            }
+        });
+        
+        console.log('✅ TerminalManager instance created successfully');
+        return instance;
+    } catch (error) {
+        console.error('❌ Failed to create TerminalManager:', error);
+        return null;
+    }
+};
+
+// Auto-initialize jika window sudah tersedia
+if (typeof window !== 'undefined') {
+    // Tunggu sampai DOM siap
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                if (!window.terminalManager) {
+                    TerminalManager.createInstance();
+                }
+            }, 100);
+        });
+    } else {
+        setTimeout(() => {
+            if (!window.terminalManager) {
+                TerminalManager.createInstance();
+            }
+        }, 100);
+    }
+}
 
 // Export for module usage
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = TerminalManager;
 }
+
+// Versi pendek untuk backward compatibility
+window.Terminal = TerminalManager;
