@@ -1643,7 +1643,7 @@ class UserBotManager {
     refreshJobs() {
         this.showAutoTextInterface();
     }
-    
+
     // Update session statuses
     async updateSessionStatuses() {
         if (!window.telegramManager) return;
@@ -1659,10 +1659,7 @@ class UserBotManager {
         document.getElementById('totalMessagesCount')?.textContent = totalMessages;
         document.getElementById('totalDialogsCount')?.textContent = totalDialogs;
         document.getElementById('activeSessionsCount')?.textContent = sessions.length;
-     
-        if (typeof module !== 'undefined' && module.exports) {
-        module.exports = UserBotManager;
-    } 
+    }  // TAMBAHKAN KURUNG KURAWAL PENUTUP YANG HILANG
     
     // Filter sessions
     filterSessions(searchTerm = '', filter = 'all') {
