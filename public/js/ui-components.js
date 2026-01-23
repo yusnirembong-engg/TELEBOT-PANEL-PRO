@@ -45,7 +45,7 @@ class TeleBotApp {
         this.emitEvent('initialized');
     }
     
-    // Initialize all managers dengan fallback yang aman
+    // Initialize all managers dengan fallback yang aman - FIXED VERSION
     initializeManagers() {
         console.log('🔄 Initializing managers...');
         
@@ -54,7 +54,7 @@ class TeleBotApp {
             window.managers = {};
         }
         
-        // Auth Manager - dengan fallback komprehensif
+        // Auth Manager
         if (!window.authManager) {
             console.warn('⚠️ Auth manager not found - creating fallback');
             window.authManager = this.createFallbackAuthManager();
@@ -64,7 +64,7 @@ class TeleBotApp {
             window.managers.auth = window.authManager;
         }
         
-        // Bot Manager - dengan fallback komprehensif
+        // Bot Manager
         if (!window.botManager) {
             console.warn('⚠️ Bot manager not found - creating fallback');
             window.botManager = this.createFallbackBotManager();
@@ -74,7 +74,7 @@ class TeleBotApp {
             window.managers.bot = window.botManager;
         }
         
-        // Telegram Manager - dengan fallback komprehensif
+        // Telegram Manager
         if (!window.telegramManager) {
             console.warn('⚠️ Telegram manager not found - creating fallback');
             window.telegramManager = this.createFallbackTelegramManager();
@@ -84,7 +84,7 @@ class TeleBotApp {
             window.managers.telegram = window.telegramManager;
         }
         
-        // Terminal Manager - dengan fallback komprehensif
+        // Terminal Manager
         if (!window.terminalManager) {
             console.warn('⚠️ Terminal manager not found - creating fallback');
             window.terminalManager = this.createFallbackTerminalManager();
@@ -94,7 +94,7 @@ class TeleBotApp {
             window.managers.terminal = window.terminalManager;
         }
         
-        // UserBot Manager - dengan fallback komprehensif
+        // UserBot Manager
         if (!window.userBotManager) {
             console.warn('⚠️ UserBot manager not found - creating fallback');
             window.userBotManager = this.createFallbackUserBotManager();
@@ -104,31 +104,131 @@ class TeleBotApp {
             window.managers.userBot = window.userBotManager;
         }
         
-        // UI Components - sangat penting
-        if (!window.uiComponents) {
-            console.error('❌ UI components not found - trying to load or create fallback');
-            window.uiComponents = this.createFallbackUIComponents();
-            window.managers.ui = window.uiComponents;
+        // UI Components - FIXED: Gunakan console.warn bukan console.error
+        console.log('🔍 Checking for UI components...');
+        
+        let uiComponentsFound = null;
+        
+        // Cari UI components di beberapa kemungkinan lokasi
+        if (window.uiComponents) {
+            uiComponentsFound = window.uiComponents;
+            console.log('✅ Found UI components as window.uiComponents');
+        } else if (window.UIComponents) {
+            uiComponentsFound = window.UIComponents;
+            console.log('✅ Found UI components as window.UIComponents');
+        } else if (window.uiManager) {
+            uiComponentsFound = window.uiManager;
+            console.log('✅ Found UI components as window.uiManager');
+        } else if (window.components && window.components.ui) {
+            uiComponentsFound = window.components.ui;
+            console.log('✅ Found UI components as window.components.ui');
+        }
+        
+        if (uiComponentsFound) {
+            window.uiComponents = uiComponentsFound;
+            window.managers.ui = uiComponentsFound;
+            console.log('✅ UI components loaded from existing source');
         } else {
-            console.log('✅ UI components loaded');
+            console.warn('⚠️ UI components not found - creating fallback');
+            window.uiComponents = this.createFallbackUIComponents();
             window.managers.ui = window.uiComponents;
         }
         
         // Initialize UI components jika ada
-        if (window.uiComponents && typeof window.uiComponents.initializeAll === 'function') {
-            try {
-                window.uiComponents.initializeAll();
-                console.log('✅ UI components initialized');
-            } catch (error) {
-                console.error('Failed to initialize UI components:', error);
+        if (window.uiComponents) {
+            console.log('🔧 Initializing UI components...');
+            
+            // Coba berbagai metode initialize
+            const initMethods = ['initializeAll', 'init', 'initialize', 'setup'];
+            let initialized = false;
+            
+            for (const method of initMethods) {
+                if (typeof window.uiComponents[method] === 'function') {
+                    try {
+                        console.log(`🔧 Trying ${method}()...`);
+                        window.uiComponents[method]();
+                        console.log(`✅ UI components initialized via ${method}()`);
+                        initialized = true;
+                        break;
+                    } catch (error) {
+                        console.warn(`⚠️ ${method}() failed:`, error.message);
+                    }
+                }
             }
+            
+            if (!initialized) {
+                console.warn('⚠️ No valid initialization method found, creating basic UI');
+                this.setupBasicUI();
+            }
+        } else {
+            console.error('❌ UI components is undefined after creation');
+            this.setupBasicUI();
         }
         
         console.log('✅ All managers initialized (some with fallbacks)');
-        console.log('Loaded managers:', Object.keys(window.managers));
+        console.log('📊 Loaded managers:', Object.keys(window.managers));
         
         // Emit event bahwa managers telah diinisialisasi
         this.emitEvent('managers-initialized', window.managers);
+    }
+    
+    // Helper untuk setup UI dasar
+    setupBasicUI() {
+        console.log('🔧 Setting up basic UI infrastructure...');
+        
+        try {
+            // 1. Pastikan toast container ada
+            if (!document.getElementById('toastContainer')) {
+                const container = document.createElement('div');
+                container.id = 'toastContainer';
+                container.className = 'toast-container';
+                container.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    z-index: 9999;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 10px;
+                    max-width: 350px;
+                `;
+                document.body.appendChild(container);
+                console.log('✅ Created toast container');
+            }
+            
+            // 2. Pastikan modal container ada
+            if (!document.getElementById('modalContainer')) {
+                const modalContainer = document.createElement('div');
+                modalContainer.id = 'modalContainer';
+                modalContainer.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    z-index: 10000;
+                    display: none;
+                `;
+                document.body.appendChild(modalContainer);
+                console.log('✅ Created modal container');
+            }
+            
+            // 3. Setup tema dasar
+            if (!localStorage.getItem('theme')) {
+                const prefersDark = window.matchMedia && 
+                    window.matchMedia('(prefers-color-scheme: dark)').matches;
+                localStorage.setItem('theme', prefersDark ? 'dark' : 'light');
+            }
+            
+            // 4. Apply tema
+            const theme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', theme);
+            
+            console.log('✅ Basic UI setup complete');
+            
+        } catch (error) {
+            console.error('❌ Failed to setup basic UI:', error);
+        }
     }
     
     // Create fallback auth manager
@@ -730,7 +830,12 @@ System Status (Fallback Mode):
                 const text = fallbackTerminal.terminalOutput.textContent;
                 navigator.clipboard.writeText(text)
                     .then(() => {
-                        window.uiComponents?.showToast('Terminal output copied to clipboard', 'success');
+                        // Gunakan fallback jika uiComponents tidak ada
+                        if (window.uiComponents && typeof window.uiComponents.showToast === 'function') {
+                            window.uiComponents.showToast('Terminal output copied to clipboard', 'success');
+                        } else {
+                            console.log('✅ Terminal output copied to clipboard');
+                        }
                     })
                     .catch(err => {
                         console.error('Failed to copy:', err);
@@ -751,7 +856,12 @@ System Status (Fallback Mode):
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
                 
-                window.uiComponents?.showToast('Terminal output downloaded', 'success');
+                // Gunakan fallback jika uiComponents tidak ada
+                if (window.uiComponents && typeof window.uiComponents.showToast === 'function') {
+                    window.uiComponents.showToast('Terminal output downloaded', 'success');
+                } else {
+                    console.log('✅ Terminal output downloaded');
+                }
             },
             
             toggleFullscreen: () => {
@@ -887,7 +997,7 @@ System Status (Fallback Mode):
         return fallbackUserBot;
     }
     
-    // Create fallback UI components
+    // Create fallback UI components - IMPROVED VERSION
     createFallbackUIComponents() {
         const fallbackUI = {
             // Toast system
@@ -897,16 +1007,44 @@ System Status (Fallback Mode):
             initializeAll: () => {
                 console.log('Initializing fallback UI components');
                 
-                // Create toast container if it doesn't exist
-                if (!document.getElementById('toastContainer')) {
-                    const container = document.createElement('div');
-                    container.id = 'toastContainer';
-                    container.className = 'toast-container';
-                    document.body.appendChild(container);
-                    fallbackUI.toastContainer = container;
+                try {
+                    // Create toast container if it doesn't exist
+                    if (!document.getElementById('toastContainer')) {
+                        const container = document.createElement('div');
+                        container.id = 'toastContainer';
+                        container.className = 'toast-container';
+                        container.style.cssText = `
+                            position: fixed;
+                            top: 20px;
+                            right: 20px;
+                            z-index: 9999;
+                            display: flex;
+                            flex-direction: column;
+                            gap: 10px;
+                            max-width: 350px;
+                        `;
+                        document.body.appendChild(container);
+                        fallbackUI.toastContainer = container;
+                        console.log('✅ Created toast container');
+                    } else {
+                        fallbackUI.toastContainer = document.getElementById('toastContainer');
+                    }
+                    
+                    // Setup tema
+                    if (!localStorage.getItem('theme')) {
+                        const prefersDark = window.matchMedia && 
+                            window.matchMedia('(prefers-color-scheme: dark)').matches;
+                        localStorage.setItem('theme', prefersDark ? 'dark' : 'light');
+                    }
+                    
+                    const theme = localStorage.getItem('theme') || 'light';
+                    document.documentElement.setAttribute('data-theme', theme);
+                    
+                    console.log('✅ Fallback UI components initialized');
+                    
+                } catch (error) {
+                    console.error('❌ Error initializing fallback UI components:', error);
                 }
-                
-                console.log('Fallback UI components initialized');
             },
             
             showToast: (message, type = 'info') => {
@@ -915,27 +1053,79 @@ System Status (Fallback Mode):
                 // Create toast element
                 const toast = document.createElement('div');
                 toast.className = `toast toast-${type}`;
+                toast.style.cssText = `
+                    background: ${type === 'success' ? '#10b981' : 
+                                 type === 'error' ? '#ef4444' : 
+                                 type === 'warning' ? '#f59e0b' : '#3b82f6'};
+                    color: white;
+                    padding: 12px 16px;
+                    border-radius: 8px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                    animation: slideIn 0.3s ease;
+                `;
+                
+                // Add CSS animation jika belum ada
+                if (!document.getElementById('toastStyles')) {
+                    const style = document.createElement('style');
+                    style.id = 'toastStyles';
+                    style.textContent = `
+                        @keyframes slideIn {
+                            from { transform: translateX(100%); opacity: 0; }
+                            to { transform: translateX(0); opacity: 1; }
+                        }
+                        @keyframes slideOut {
+                            from { transform: translateX(0); opacity: 1; }
+                            to { transform: translateX(100%); opacity: 0; }
+                        }
+                        .toast-exit {
+                            animation: slideOut 0.3s ease forwards;
+                        }
+                    `;
+                    document.head.appendChild(style);
+                }
+                
+                const iconMap = {
+                    'success': 'fa-check-circle',
+                    'error': 'fa-exclamation-circle',
+                    'warning': 'fa-exclamation-triangle',
+                    'info': 'fa-info-circle'
+                };
+                
                 toast.innerHTML = `
-                    <div class="toast-content">
-                        <i class="toast-icon fas fa-${this.getToastIcon(type)}"></i>
-                        <span class="toast-message">${message}</span>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <i class="fas ${iconMap[type] || 'fa-info-circle'}" style="font-size: 18px;"></i>
+                        <span style="flex: 1;">${message}</span>
                     </div>
-                    <button class="toast-close" onclick="this.parentElement.remove()">
+                    <button onclick="this.parentElement.style.animation='slideOut 0.3s ease forwards'; setTimeout(() => this.parentElement.remove(), 300)" 
+                            style="background: none; border: none; color: white; cursor: pointer; padding: 4px 8px; margin-left: 10px;">
                         <i class="fas fa-times"></i>
                     </button>
                 `;
                 
                 // Add to container
-                if (!fallbackUI.toastContainer) {
-                    fallbackUI.initializeAll();
+                if (fallbackUI.toastContainer) {
+                    fallbackUI.toastContainer.appendChild(toast);
+                } else {
+                    // Fallback: append to body
+                    toast.style.position = 'fixed';
+                    toast.style.top = '20px';
+                    toast.style.right = '20px';
+                    toast.style.zIndex = '9999';
+                    document.body.appendChild(toast);
                 }
-                
-                fallbackUI.toastContainer.appendChild(toast);
                 
                 // Auto remove after 5 seconds
                 setTimeout(() => {
                     if (toast.parentNode) {
-                        toast.remove();
+                        toast.style.animation = 'slideOut 0.3s ease forwards';
+                        setTimeout(() => {
+                            if (toast.parentNode) {
+                                toast.remove();
+                            }
+                        }, 300);
                     }
                 }, 5000);
                 
@@ -1025,6 +1215,15 @@ System Status (Fallback Mode):
                 if (!modalContainer) {
                     modalContainer = document.createElement('div');
                     modalContainer.id = 'modalContainer';
+                    modalContainer.style.cssText = `
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        z-index: 10000;
+                        display: none;
+                    `;
                     document.body.appendChild(modalContainer);
                 }
                 
@@ -1032,15 +1231,55 @@ System Status (Fallback Mode):
                 const modal = document.createElement('div');
                 modal.className = 'modal';
                 modal.id = id + 'Modal';
+                modal.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    z-index: 10001;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                `;
                 
                 const sizeClass = options.size || 'medium';
                 
                 modal.innerHTML = `
-                    <div class="modal-overlay" onclick="document.getElementById('${id}Modal').remove()"></div>
-                    <div class="modal-content modal-${sizeClass}">
-                        <div class="modal-header">
-                            <h3>${options.title || 'Modal'}</h3>
-                            <button class="modal-close" onclick="document.getElementById('${id}Modal').remove()">
+                    <div class="modal-overlay" onclick="document.getElementById('${id}Modal').remove()" style="
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        background: rgba(0,0,0,0.5);
+                    "></div>
+                    <div class="modal-content modal-${sizeClass}" style="
+                        background: white;
+                        border-radius: 8px;
+                        padding: 20px;
+                        max-width: ${sizeClass === 'small' ? '400px' : sizeClass === 'large' ? '800px' : '600px'};
+                        width: 90%;
+                        max-height: 80vh;
+                        overflow-y: auto;
+                        position: relative;
+                        z-index: 10002;
+                    ">
+                        <div class="modal-header" style="
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                            margin-bottom: 15px;
+                            border-bottom: 1px solid #eee;
+                            padding-bottom: 10px;
+                        ">
+                            <h3 style="margin: 0;">${options.title || 'Modal'}</h3>
+                            <button class="modal-close" onclick="document.getElementById('${id}Modal').remove()" style="
+                                background: none;
+                                border: none;
+                                font-size: 20px;
+                                cursor: pointer;
+                            ">
                                 <i class="fas fa-times"></i>
                             </button>
                         </div>
@@ -1048,7 +1287,14 @@ System Status (Fallback Mode):
                             ${options.content || 'No content provided'}
                         </div>
                         ${options.footer ? `
-                        <div class="modal-footer">
+                        <div class="modal-footer" style="
+                            margin-top: 20px;
+                            border-top: 1px solid #eee;
+                            padding-top: 15px;
+                            display: flex;
+                            justify-content: flex-end;
+                            gap: 10px;
+                        ">
                             ${options.footer}
                         </div>
                         ` : ''}
@@ -1057,21 +1303,21 @@ System Status (Fallback Mode):
                 
                 modalContainer.innerHTML = '';
                 modalContainer.appendChild(modal);
+                modalContainer.style.display = 'block';
                 
                 return modal;
-            },
-            
-            // Add more UI methods as needed...
+            }
         };
+        
+        // Initialize immediately
+        setTimeout(() => {
+            fallbackUI.initializeAll();
+        }, 100);
         
         return fallbackUI;
     }
     
-    // ... Rest of the TeleBotApp class methods remain the same ...
-    // [The rest of the original TeleBotApp class code continues here]
-    // setupEventListeners(), handleLogin(), showMainPanel(), etc.
-    
-    // Setup event listeners (sama seperti versi asli)
+    // Setup event listeners
     setupEventListeners() {
         // Login form submission
         const loginForm = document.getElementById('loginForm');
@@ -1082,12 +1328,10 @@ System Status (Fallback Mode):
             });
         }
         
-        // ... (event listeners lainnya sama seperti versi asli) ...
-        
         console.log('✅ Event listeners setup complete');
     }
     
-    // Handle login (diperbarui untuk kompatibilitas dengan fallback)
+    // Handle login
     async handleLogin() {
         const username = document.getElementById('username')?.value;
         const password = document.getElementById('password')?.value;
@@ -1123,7 +1367,7 @@ System Status (Fallback Mode):
                 }
             }
             
-            // Attempt login (works with both real and fallback auth managers)
+            // Attempt login
             const result = await window.authManager.login(username, password, clientIP);
             
             if (result.success) {
@@ -1175,7 +1419,7 @@ System Status (Fallback Mode):
         }
     }
     
-    // Show main panel (diperbarui untuk fallback mode)
+    // Show main panel
     showMainPanel() {
         const loginScreen = document.getElementById('loginScreen');
         const mainPanel = document.getElementById('mainPanel');
@@ -1201,7 +1445,56 @@ System Status (Fallback Mode):
         }, 100);
     }
     
-    // ... (metode lainnya tetap sama seperti versi asli) ...
+    // Helper method untuk showToast
+    showToast(message, type = 'info') {
+        // Gunakan uiComponents jika ada
+        if (window.uiComponents && typeof window.uiComponents.showToast === 'function') {
+            window.uiComponents.showToast(message, type);
+        } else {
+            // Fallback: log ke console
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+    }
+    
+    // Helper method untuk emit event
+    emitEvent(eventName, data = null) {
+        const event = new CustomEvent(eventName, { detail: data });
+        document.dispatchEvent(event);
+    }
+    
+    // Tambahkan method-method yang dibutuhkan (dummy implementation)
+    switchSection(section) {
+        this.currentSection = section;
+        console.log(`Switched to section: ${section}`);
+    }
+    
+    updateUserInfo() {
+        console.log('Updating user info...');
+    }
+    
+    updateSystemStats() {
+        console.log('Updating system stats...');
+    }
+    
+    updateBotStatus() {
+        console.log('Updating bot status...');
+    }
+    
+    updateThemeIcon() {
+        console.log('Updating theme icon...');
+    }
+    
+    setupSessionTimer() {
+        console.log('Setting up session timer...');
+    }
+    
+    setupPeriodicUpdates() {
+        console.log('Setting up periodic updates...');
+    }
+    
+    checkAPIStatus() {
+        console.log('Checking API status...');
+    }
 }
 
 // Create global instance
