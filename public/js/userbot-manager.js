@@ -1655,7 +1655,6 @@ class UserBotManager {
         const totalDialogs = sessions.reduce((sum, s) => sum + (s.stats?.dialogsLoaded || 0), 0);
         
         // Perbaikan: Hapus optional chaining untuk textContent
-        const connectedEl = document.getElementById('connectedSessionsCount');
         const totalMessagesEl = document.getElementById('totalMessagesCount');
         const totalDialogsEl = document.getElementById('totalDialogsCount');
         const activeSessionsEl = document.getElementById('activeSessionsCount');
